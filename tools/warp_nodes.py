@@ -1,34 +1,34 @@
 # =============================================================================
-#  tools/warp_nodes.py  -  Source Refract -> Blender warp material
+# tools/warp_nodes.py  -  Source Refract -> Blender warp material
 # =============================================================================
 #
-#  A Refract particle is not a picture, it is a DISTORTION. Source renders the
-#  scene, then bends it through the material's normal map - heat haze, shock
-#  rings, droplets on the lens. There is no $basetexture at all; the image is
-#  $normalmap and it is data, not colour.
+# A Refract particle is not a picture, it's a DISTORTION. Source renders the
+# scene, then bends it thru the material's normal map - heat haze, shock
+# rings, droplets on the lens. There is no $basetexture at all; the image is
+# $normalmap and it is data, not colour
 #
-#  🔴 THE CORE IS THE PREPARED REFERENCE SETUP, PORTED FAITHFULLY - the
-#  finished droplet material in `__Developer/Shader Nodes/Refract/`, node for
-#  node, label for label, INCLUDING its material settings. The generated
-#  version that preceded it was invisible in practice for two reasons that
-#  graph checks cannot catch:
+# 🔴 the CORE is the PREPARED REFERENCE SETUP, PORTED FAITHFULLY - the
+# finished droplet material in `__Developer/Shader Nodes/Refract/`, node for
+# node, label for label, INCLUDING its material settings. The generated
+# version that preceded it was invisible in practice for two reasons that
+# graph checks can't catch:
 #
-#    1. It multiplied alpha by the `sprite_alpha` INSTANCER attribute
-#       EVERYWHERE - on any mesh that is not an instanced particle the
-#       attribute reads 0, so alpha was 0 and the material drew NOTHING.
-#       (The sprite_color black-probe bug, again, on the other socket.)
-#    2. It skipped `blend_method`/`use_transparent_shadow`/`thickness_mode`,
-#       which the reference sets (HASHED / True / SPHERE).
+# 1. It multiplied alpha by the `sprite_alpha` INSTANCER attribute
+# EVERYWHERE - on any mesh that isn't an instanced particle the
+# attribute reads 0, so alpha was 0 and the material drew nothing.
+# (The sprite_color black-probe bug, again, on the other socket.)
+# 2. It skipped `blend_method`/`use_transparent_shadow`/`thickness_mode`,
+# which the reference sets (HASHED / True / SPHERE)
 #
-#  So: the registered group and the material carry NO particle plumbing by
-#  default - drop them on any mesh and they refract. The particle attributes
-#  are added ONLY on the system paths (`particle_attrs=True`), where the
-#  emitters genuinely store them.
+# So: the registered group and the material carry NO particle plumbing by
+# default - drop them on any mesh and they refract. The particle attributes
+# are added ONLY on the system paths (`particle_attrs=True`), where the
+# emitters genuinely store them.
 #
-#  ⚠️ $refractamount IS NOT AN IOR. It scales the X/Y deviation encoded in
-#  the normal map, sign preserved - negative reverses the warp. Blender's
-#  IOR must still be >1 for the lobe to bend anything, so "Warp IOR" is a
-#  separate control labelled [NOT SFM], exactly as in the reference.
+# ⚠️ $refractamount is not AN IOR. It scales the X/Y deviation encoded in
+# the normal map, sign preserved - negative reverses the warp. Blender's
+# IOR must still be >1 for the lobe to bend anything, so "Warp IOR" is a
+# separate control labelled [not SFM], exactly as in the reference.
 # =============================================================================
 
 import bpy
@@ -227,9 +227,9 @@ def build_warp_material(name, image, cols=1, rows=1, uv_group=None,
     nt = mat.node_tree
     nt.nodes.clear()
 
-    # Every material setting from the reference .blend, guarded per Blender
+    # every material setting from the reference .blend, guarded per Blender
     # generation. HASHED + transparent shadow + SPHERE thickness are part of
-    # why the reference draws where the generated version did not.
+    # why the reference draws where the generated version did not
     for attr, val in (("blend_method", "HASHED"),
                       ("surface_render_method", "DITHERED"),
                       ("use_transparency_overlap", True),
@@ -245,8 +245,8 @@ def build_warp_material(name, image, cols=1, rows=1, uv_group=None,
         except Exception:
             pass
 
-    # 🔴 A NORMAL MAP MUST NOT BE GAMMA-TRANSFORMED. sRGB bends the encoded
-    # vectors and the warp direction comes out subtly, uniformly wrong.
+    # 🔴 A NORMAL MAP must NOT BE GAMMA-TRANSFORMED. sRGB bends the encoded
+    # vectors and the warp direction comes out subtly, uniformly wrong
     try:
         image.colorspace_settings.name = "Non-Color"
     except Exception as exc:
@@ -289,8 +289,8 @@ def build_warp_material(name, image, cols=1, rows=1, uv_group=None,
     _set_named(core, "Refract Tint [SFM: $refracttint]", tuple(tint))
 
     if particle_attrs:
-        # SYSTEM plumbing: fade and tint per particle, exactly like the
-        # sprite material. Only here - the emitters store these attributes.
+        #SYSTEM plumbing: fade and tint per particle, exactly like the
+        #sprite material. Only here - the emitters store these attributes
         a_alpha = _nd(nt, "ShaderNodeAttribute", (-700, -160), "sprite_alpha",
                       role="OPERATOR", attribute_type="INSTANCER",
                       attribute_name="sprite_alpha")
@@ -335,7 +335,7 @@ store (sprite_alpha / sprite_color, read as INSTANCER).""" if particle_attrs
 any plain mesh, sphere or card.""") + "\n",
          plumbing + [core, out])
 
-    # Breadcrumbs for whoever inspects the material later.
+    # breadcrumbs for whoever inspects the material later
     mat["source_shader"] = "Refract"
     mat["source_refractamount"] = float(refract_amount)
     mat["source_bluramount"] = float(blur_amount)

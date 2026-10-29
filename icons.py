@@ -1,14 +1,14 @@
 # =============================================================================
-#  icons.py  -  custom icons, loaded the way HoovyTools does it
+# icons.py  -  custom icons, loaded the way HoovyTools does it
 # =============================================================================
 #
-#  Drop a 32x32 PNG into images/icons/<key>.png and add its key below. Use
-#  icon_id("key", "FALLBACK") in any layout call:
+# Drop a 32x32 PNG into images/icons/<key>.png and add its key below. Use
+# icon_id("key", "FALLBACK") in any layout call:
 #
-#      row.operator("htp.thing", text="Thing", **icon_id("thing", "DOT"))
+# row.operator("htp.thing", text="Thing", **icon_id("thing", "DOT"))
 #
-#  Missing files are not an error - the Blender fallback icon is used and a
-#  line is printed, so a half-finished icon set never breaks the UI.
+# Missing files are not an error - the Blender fallback icon is used and a
+# line is printed, so a half-finished icon set never breaks the UI.
 # =============================================================================
 
 from pathlib import Path
@@ -21,7 +21,7 @@ ICONS_DIR = Path(__file__).parent / "images" / "icons"
 ICON_KEYS = (
     "particle_import",
     "tab_properties",
-    #  The green HoovyTools crowbar keeps File > Import in the same family.
+    # the green HoovyTools crowbar keeps File > Import in the same family.
     "source_engine",
     "hammer_grid",
     "vtf_import",
@@ -36,8 +36,8 @@ ICON_KEYS = (
     "copy_support",
     "node_to_code",
     "developer",
-    #  The PROPERTIES tab's section icons - see ICON_FILES below for where
-    #  their pictures actually come from.
+    # The PROPERTIES tab's section icons - see ICON_FILES below for where
+    # their pictures actually come from
     "sys_properties",
     "sys_properties_renderer",
     "sys_properties_operator",
@@ -47,7 +47,7 @@ ICON_KEYS = (
     "sys_properties_forcegenerator",
     "sys_properties_constraint",
     "sys_properties_non_sfm",
-    #  3.0.0: the Tools ribbons that had none, the Dev tab, the status symbols
+    # 3.0.0: the Tools ribbons that had none, the Dev tab, the status symbols
     "pcf_preview",
     "process_folder",
     "particle_size",
@@ -62,7 +62,7 @@ ICON_KEYS = (
     "status_bad",
     "dev_config",
     "developer_mode",
-    #  3.0.0: BUILD THIS SYSTEM
+    # 3.0.0: BUILD THIS SYSTEM
     "build_system",
 )
 
@@ -89,15 +89,15 @@ ICON_FILES = {
     "sys_properties_constraint": (
         "properties/properties_constraint.png",
         "sys_properties_constraint.png"),
-    #  The Control Points header wears the control-points icon; the key name
-    #  predates the hand-drawn set and is not worth breaking callers over.
+    # The Control Points header wears the control-points icon; the key name
+    # predates the hand-drawn set and is not worth breaking callers over
     "sys_properties_non_sfm": (
         "properties/properties_control_points.png",
         "sys_properties_non_sfm.png"),
 }
 
-# Share artwork where the meaning is the same. Prefer the multicolor set
-# with repaired alpha; retain the red set and original art as fallbacks.
+# share artwork where the meaning is the same. Prefer the multicolor set
+# with repaired alpha; retain the red set and original art as fallbacks
 _ICON_ART_FILES = {
     "particle_import": "particle_import",
     "tab_properties": "tab_properties",
@@ -132,9 +132,9 @@ for _key, _art in _ICON_ART_FILES.items():
 _pcoll = None
 
 # prop_enum reads custom preview IDs from its EnumProperty items. Keep each
-# list alive for Blender's string references, including across icon reloads.
+# list alive for Blender's string references, including across icon reloads
 # Saved tab numbers stay 0/1/3 so existing scenes keep their selected tab; 3.0.0 adds Tools as 4 (the old
-# Developer tab's tools) - a scene saved on Developer (1) now opens the new Dev tab.
+# Developer tab's tools) - a scene saved on Developer (1) now opens the new Dev tab
 _tab_item_cache = {}
 
 

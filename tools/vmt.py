@@ -1,46 +1,46 @@
 # =============================================================================
-#  tools/vmt.py  -  read a .vmt, find the .vtf
+# tools/vmt.py  -  read a .vmt, find the .vtf
 # =============================================================================
 #
-#  A .pcf names a MATERIAL, not a texture. The chain is:
+# A .pcf names a MATERIAL, not a texture. The chain is:
 #
-#      system's `material`  ->  .vmt  ->  $basetexture  ->  .vtf
+# system's `material`  ->  .vmt  ->  $basetexture  ->  .vtf
 #
-#  so nothing can be imported until this link exists.
+# so nothing can be imported until this link exists
 #
-#  VMT IS NOT A FORMAT, IT IS A HABIT. Everything below is a real thing found
-#  in real files, and a parser that assumes any of them is unnecessary breaks
-#  on somebody's material:
+# VMT is not A FORMAT, IT is A HABIT. Everything below is a real thing found
+# in real files, and a parser that assumes any of them is unnecessary breaks
+# on somebody's material:
 #
-#      "$basetexture" "path"      $basetexture "path"      basetexture path
-#      $BASETEXTURE "path"        "$BaseTexture"  "path"
-#      // comment   # comment   /* block */
-#      backslashes, forward slashes, a leading "materials/", no extension
-#      nested blocks (Proxies), duplicate keys, values like "[0.8 2.5 5]"
+# "$basetexture" "path"      $basetexture "path"      basetexture path
+# $BASETEXTURE "path"        "$BaseTexture"  "path"
+# // comment   # comment   /* block */
+# backslashes, forward slashes, a leading "materials/", no extension
+# nested blocks (Proxies), duplicate keys, values like "[0.8 2.5 5]"
 #
-#  So: case-insensitive, quote-optional, `$`-optional on names we recognise,
-#  and comments stripped OUTSIDE quotes (a path can contain //, and a texture
-#  called `some//thing` is not a comment).
+# So: case-insensitive, quote-optional, `$`-optional on names we recognise,
+# and comments stripped OUTSIDE quotes (a path can contain //, and a texture
+# called `some//thing` is not a comment)
 #
-#  bpy-free on purpose - pure text, testable without Blender.
+# bpy-free on purpose - pure text, testable w/o Blender
 #
-#  This is the reader the importer uses. The full standalone reporter lives in
-#  __Developer/Parser - VMT and goes further: it keeps line numbers, blocks,
-#  duplicates and warnings. This one answers the two questions the importer
-#  actually asks - what shader, and which texture.
+# This is the reader the importer uses. The full standalone reporter lives in
+# __Developer/Parser - VMT and goes further: it keeps line numbers, blocks,
+# duplicates and warnings. This one answers the two questions the importer
+# actually asks - what shader, and which texture.
 # =============================================================================
 
 from pathlib import Path
 
 
-# Names that are textures. Used both to classify and to recognise a key that
-# an author wrote without its '$'.
+#Names that are textures. Used both to classify and to recognise a key that
+#an author wrote w/o its '$'
 TEXTURE_KEYS = (
     "$basetexture", "$basetexture2", "$bumpmap", "$normalmap", "$dudvmap",
     "$detail", "$selfillummask", "$envmapmask", "$refracttexture",
 )
 
-# Which parameter carries the image that MATTERS, per shader. A Refract
+# which parameter carries the image that MATTERS, per shader. A Refract
 # particle has no $basetexture at all - its picture is a normal map - so
 # asking every shader for $basetexture finds nothing and reports "no texture"
 # for a material that has one.
@@ -65,8 +65,8 @@ _KNOWN = set(TEXTURE_KEYS) | {
     "$maxsize", "$minsize", "$sequence_blend_mode",
 }
 
-# The keys whose picture is DATA, not colour. A Refract material's image is a
-# normal map: import it Non-Color and drive a warp with it, never show it.
+# the keys whose picture is DATA, not colour. A Refract material's image is a
+# normal map: import it Non-Color and drive a warp with it, never show it
 NORMAL_KEYS = ("$normalmap", "$bumpmap", "$dudvmap")
 
 
@@ -374,17 +374,17 @@ def blend_mode(values):
 
 # ── shader classes ───────────────────────────────────────────────────────────
 #
-#  Real particle materials come in TWO families, and they need different
-#  Blender materials, not different numbers in the same one:
+# Real particle materials come in TWO families, and they need different
+# Blender materials, not different numbers in the same one:
 #
-#      SPRITE   spritecard / sprite / unlitgeneric ... - the picture IS the
-#               particle. Emissive card, $overbrightfactor, $additive.
-#      WARP     refract - the picture is a NORMAL MAP and the particle is a
-#               distortion: it bends whatever renders behind it. Heat haze,
-#               shockwaves, droplets. It has no $basetexture at all.
+# SPRITE   spritecard / sprite / unlitgeneric ... - the picture is the
+# particle. Emissive card, $overbrightfactor, $additive
+# WARP     refract - the picture is a NORMAL MAP and the particle is a
+# distortion: it bends whatever renders behind it. Heat haze,
+# shockwaves, droplets. It has no $basetexture at all
 #
-#  Everything that reads a .vmt asks THIS module which family it landed in, so
-#  the decision is made once, here, instead of once per operator.
+# Everything that reads a .vmt asks this module which family it landed in, so
+# the decision is made once, here, instead of once per operator.
 
 def material_class(shader, texture_key=None):
     """'WARP' or 'SPRITE'.

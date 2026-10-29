@@ -1,15 +1,15 @@
 ﻿# =============================================================================
-#  operators/op_ras.py  -  Create Render Animated Sprites (.VTF Sprite)
+# operators/op_ras.py  -  Create Render Animated Sprites (.VTF Sprite)
 # =============================================================================
 #
-#  Pick a .vtf and get a full render_animated_sprites system: every operator
-#  its own colour-coded node group with its own ENABLE toggle, arranged into
-#  SFM's sections as modifier panels.
+# Pick a .vtf and get a full render_animated_sprites system: every operator
+# its own colour-coded node group with its own ENABLE toggle, arranged into
+# SFM's sections as modifier panels.
 #
-#      CONTROL POINTS · SYSTEM PROPERTIES · RENDERER · EMITTER
-#      INITIALIZER · OPERATOR · FORCE GENERATOR · CONSTRAINT · CHILDREN
+# CONTROL POINTS · SYSTEM PROPERTIES · RENDERER · EMITTER
+# INITIALIZER · OPERATOR · FORCE GENERATOR · CONSTRAINT · CHILDREN
 #
-#  Lands in  __HoovyTools__ / Render Animated Sprites / <texture name>.
+# Lands in  __HoovyTools__ / Render Animated Sprites / <texture name>.
 # =============================================================================
 
 from pathlib import Path
@@ -66,23 +66,23 @@ def _collection(name):
 
 
 # =============================================================================
-#  SHARED GROUPS ARE BUILT ONCE PER SESSION
+# shared groups are built once per session
 # =============================================================================
-#  ⚠️ `_group()` CLEARS an existing node group before refilling it, and
-#  clearing an interface DROPS EVERY LINK anything else had made into it -
-#  silently. So building a second system re-ran every operator builder and
-#  quietly gutted the first system's graph: it kept its nodes, lost its wiring,
-#  and emitted nothing. That was invisible until CHILDREN made "two systems in
-#  one scene" the normal case rather than the exception.
+# ⚠️ `_group()` CLEARS an existing node group before refilling it, and
+# clearing an interface DROPS EVERY LINK anything else had made into it -
+# silently. So building a second system re-ran every operator builder and
+# quietly gutted the first system's graph: it kept its nodes, lost its wiring,
+# and emitted nothing. That was invisible until CHILDREN made "two systems in
+# one scene" the normal case rather than the exception.
 #
-#  The operator groups are pure functions of nothing - "SP · OPERATOR ·
-#  Movement Basic" is the same graph every time - so the second build does not
-#  need to happen at all. This cache keeps the one that was built.
+# The operator groups are pure functions of nothing - "SP · OPERATOR ·
+# Movement Basic" is the same graph every time - so the second build doesn't
+# need to happen at all. This cache keeps the one that was built
 #
-#  It is keyed per Blender SESSION, not per file: reloading the add-on gives a
-#  fresh module and a fresh empty cache, so code changes still take effect on
-#  the next build. Anything with a material baked into it is keyed by that
-#  material's name, and its node group is named after it too.
+# It is keyed per Blender SESSION, not per file: reloading the add-on gives a
+# fresh module and a fresh empty cache, so code changes still take effect on
+# the next build. Anything with a material baked into it's keyed by that
+# material's name, and its node group is named after it too
 _SHARED_GROUPS = {}
 
 
@@ -114,23 +114,23 @@ def _once(key, builder, *args):
 
 
 # =============================================================================
-#  PICKING A PARENT
+# PICKING A PARENT
 # =============================================================================
-#  An Operator cannot hold a PointerProperty to an Object - Blender does not
-#  allow it - so the parent is stored as a NAME and drawn with prop_search,
-#  which gives the same searchable object dropdown and resolves at execute.
+# An Operator cannot hold a PointerProperty to an Object - Blender does not
+# allow it - so the parent is stored as a NAME and drawn with prop_search,
+# which gives the same searchable object dropdown and resolves at execute.
 #
-#  🔴 DEPENDENCIES RUN ONE WAY: PARENT -> CHILD. A child reads its parent's
-#  particles through Object Info, which makes it depend on the parent, and the
-#  depsgraph evaluates them in that order for nothing. If a parent ever read
-#  a child back, that is a CYCLE - Blender refuses to evaluate it and hands
-#  back stale or empty geometry, with no error that points at the cause.
+# 🔴 DEPENDENCIES RUN one WAY: PARENT -> CHILD. A child reads its parent's
+# particles thru Object Info, which makes it depend on the parent, and the
+# depsgraph evaluates them in that order for nothing. If a parent ever read
+# a child back, that's a CYCLE - Blender refuses to evaluate it and hands
+# back stale or empty geometry, with no error that points at the cause
 #
-#  So `Set child control points from particle positions` (110 uses in TF2)
-#  must never be built by reading the child OBJECT. It is implemented inside
-#  the parent's own graph, from the parent's own particles - which is where
-#  that data already is. Nothing is lost and the object graph stays acyclic
-#  by construction.
+# So `Set child control points from particle positions` (110 uses in TF2)
+# must never be built by reading the child OBJECT. It is implemented inside
+# the parent's own graph, from the parent's own particles - which is where
+# that data already is. Nothing is lost and the object graph stays acyclic
+# by construction.
 
 PARENT_PROP = dict(
     name="Parent System",
@@ -239,9 +239,9 @@ def _socket_for(display):
     if display == "Max Particles":
         return ras_system.MAXP
     # "Operator::Field" disambiguates, and it has to be possible: "Emission
-    # Start Time" belongs to BOTH emit_continuously and emit_instantaneously,
+    # Start Time" belongs to both emit_continuously and emit_instantaneously,
     # and "Control Point" to four different operators. Guessing silently
-    # meant a burst's start time went to the continuous emitter instead.
+    # meant a burst's start time went to the continuous emitter instead
     want_op, _, want = display.rpartition("::")
     hits = []
     for op in ras_spec.OPERATORS:
@@ -290,12 +290,12 @@ def build_ras(context, path, values=None,
               on its own this builds a `RAS · <texture>` one."""
     # DRIVER SYSTEM (path is None): no texture to draw. Still emit + move
     # particles so its CHILDREN ride them - Position From Parent Particles reads
-    # one INSTANCE per parent particle, and an invisible card still IS one
+    # one INSTANCE per parent particle, and an invisible card still is one
     # instance. Covers material-less SFM systems (deliberate motion carriers,
     # e.g. a "circling" system feeding a beam child) AND systems whose .vmt/.vtf
     # is missing, which now degrade to invisible instead of dropping the whole
     # subtree. Forced to the sprite renderer: it draws nothing anyway, and only
-    # the emitter + operators (the motion) matter to the children.
+    # the emitter + operators (the motion) matter to the children
     driver = path is None
     rects = None            # set only by the non-uniform-sheet branch
     if driver:
@@ -315,10 +315,10 @@ def build_ras(context, path, values=None,
         _w, _h = img.size[0], img.size[1]
         if sheet and grid is None and not warp:
             # NON-UNIFORM sheet: the frames are DIFFERENT sizes, so there is no
-            # grid to tile. Cut by the VTF's OWN per-frame rectangles instead:
+            # grid to tile. Cut by the VTF's own per-frame rectangles instead:
             # the SYSTEM holds them all in one Index Switch and stores each
-            # particle's chosen rect; the material just maps UVs onto it.
-            # (This case used to fall back to 1x1 and draw the WHOLE sheet on
+            # particle's chosen rect; the material just maps UVs onto it
+            # (This case used to fall back to 1x1 and draw the whole sheet on
             # every card - the variable-width spark strip bug.)
             cols, rows = 1, 1
             sequences, rects = sprite_nodes.rect_sequence_table(sheet, _w, _h)
@@ -327,15 +327,15 @@ def build_ras(context, path, values=None,
             for i, (st, ct, lp) in enumerate(sequences):
                 print(f"{TAG}     seq {i}: rect {st}, {ct} frame(s), "
                       f"{'LOOPS' if lp else 'plays once'}")
-            #  Named under the "RAS Sheet UV" family so the hand shader layout
-            #  adopts it into the Sheet Processing frame like the grid group.
+            # Named under the "RAS Sheet UV" family so the hand shader layout
+            # adopts it into the Sheet Processing frame like the grid group.
             uv_group = sprite_nodes.build_rect_uv_group(
                 f"RAS Sheet UV · {stem} · rects", rects, _w, _h)
         else:
             if sheet and grid is None and warp:
-                # A warp material samples a normal map through the same UV
+                # A warp material samples a normal map thru the same UV
                 # group, but the warp builder speaks Frame/Columns/Rows - no
-                # rect variant exists yet. Said out loud, not silently wrong.
+                # rect variant exists yet. Said out loud, not silently wrong
                 print(f"{TAG}  ⚠ {Path(path).name}: non-uniform sheet on a "
                       f"WARP material - per-frame rects not built for warps "
                       f"yet, cards sample the whole sheet")
@@ -351,21 +351,21 @@ def build_ras(context, path, values=None,
                 f"RAS Sheet UV · {stem}", cols, rows, _w, _h)
 
         if span_sequences and len(sequences) > 1:
-            # 🔴 A HAND-BUILT SYSTEM ON A MULTI-SEQUENCE SHEET DREW VARIANT 0
-            # FOREVER. Sequence Min/Max default to 0/0 - faithful for a .pcf,
-            # which states what it wants - but Create Trail on the 4-spark sheet
-            # rolled sequence 0 for every particle, and the sheet looked like it
-            # was never divided. Hand-built entry points span the sheet's whole
-            # table unless the caller narrowed it themselves.
+            #🔴 A HAND-BUILT SYSTEM ON A MULTI-SEQUENCE SHEET DREW VARIANT 0
+            #FOREVER. Sequence Min/Max default to 0/0 - faithful for a .pcf,
+            #which states what it wants - but Create Trail on the 4-spark sheet
+            #rolled sequence 0 for every particle, and the sheet looked like it
+            #was never divided. Hand-built entry points span the sheet's whole
+            #table unless the caller narrowed it themselves
             values = dict(values or {})
             values.setdefault("Sequence Min", 0)
             values.setdefault("Sequence Max", len(sequences) - 1)
-        # The material is keyed by texture AND overbright: the same .vtf used at
+        # the material is keyed by texture and overbright: the same .vtf used at
         # two brightnesses by two systems is two materials, not one that the
         # second build quietly re-brightens under the first. The material FAMILY
         # was decided by op_vmt.resolve_source: a Refract .vmt hands over `warp`
         # and the cards get the warp material instead of the emissive sprite one
-        # - same emitter, same per-particle attributes, different shader.
+        # - same emitter, same per-particle attributes, different shader
         if warp:
             mat = warp_nodes.build_warp_material(
                 f"RAS Warp · {stem} · a{warp['refract_amount']:g}",
@@ -379,7 +379,7 @@ def build_ras(context, path, values=None,
             # 0.24.2: HOW MANY TIMES SFM DRAWS IT, measured - a trail once, a
             # sprite twice only when another sprite system in the same effect
             # shares its material. Part of the name, like the blend: the same
-            # .vtf drawn once and twice is two materials.
+            # .vtf drawn once and twice is two materials
             n_draws = 1 if (renderer or "").upper() == "SPRITE_TRAIL" \
                 else max(1, int(draws or 1))
             mat = sprite_nodes.build_sprite_material(
@@ -426,19 +426,19 @@ def build_ras(context, path, values=None,
                                    ras_ops.build_random_force_tick),
     }
     groups.update(_once("initializers", ras_nodes.build_initializers))
-    # A rope drags in its own material and shader; do not build either
+    # A rope drags in its own material and shader; don't build either
     # for a sprite system that will never reference them.
     if (renderer or "").upper() == "ROPE":
         if warp:
-            # Honest, not silent: the rope has its OWN material and no warp
-            # variant of it exists yet, so a Refract .vmt on a rope gets the
-            # neutral rope shader - said out loud rather than half-built.
+            #honest, not silent: the rope has its own material and no warp
+            #variant of it exists yet, so a Refract .vmt on a rope gets the
+            #neutral rope shader - said out loud rather than half-built
             print(f"{TAG}  {stem}: Refract material on a ROPE - the warp "
                   f"shader only exists for sprite cards so far, so the rope "
                   f"builds with its normal material")
-        # KEYED BY CONTENT, like the sprite material: the same .vtf drawn at
-        # two brightnesses is two materials, not one that the second build
-        # quietly re-brightens under the first.
+        #KEYED BY CONTENT, like the sprite material: the same .vtf drawn at
+        #two brightnesses is two materials, not one that the second build
+        #quietly re-brightens under the first
         rope_mat = rope_nodes.build_rope_material(
             f"ROPE · {stem}"
             + (f" · x{overbright:g}" if abs(overbright - 1.0) > 1e-6 else "")
@@ -448,7 +448,7 @@ def build_ras(context, path, values=None,
                                rope_nodes.build_render_rope, rope_mat, eye)
     elif (renderer or "").upper() == "SPRITE_TRAIL":
         # A trail uses the SAME sheet material as an animated sprite - that
-        # is what gives it sequences for nothing.
+        # is what gives it sequences for nothing
         groups["trail"] = _once(f"trail·{mat.name}",
                                 trail_nodes.build_render_sprite_trail,
                                 mat, eye)
@@ -464,24 +464,24 @@ def build_ras(context, path, values=None,
             c.objects.unlink(obj)
         coll.objects.link(obj)
 
-    # THE CONTROL EMPTY FIRST. It is the effect's transform: hosts and control
-    # points all sit on its origin, so "relative to the host" and "relative to
-    # the control empty" are one frame, and one shared set of control points
-    # can serve every system in the tree. Object Info reads control points
-    # RELATIVE, so unparented empties mean moving the effect slides it the
-    # OTHER WAY and it stays pinned to the world origin.
-    # Re-running the builder on the same .vtf REBUILDS IN PLACE rather than
-    # piling up copies - but a child is a different system that happens to
-    # share a texture, so it gets its own host. Without this the child would
-    # take over the parent it was meant to follow.
-    # 🔴 NAME THE HOST AFTER THE SYSTEM, NOT AFTER THE TEXTURE.
-    # Naming by .vtf stem loses data: two children of one parent that share a
-    # texture - `brightglow_y` twice under one explosion, which is completely
-    # normal - resolve to the SAME object name, so the second build reuses the
-    # first one's object and node group and the first system is gone. It looks
-    # like the import merely built fewer systems than expected.
-    # A .pcf system name is unique (build_hierarchy disambiguates with #2),
-    # so the importer passes it and this stays a per-system identity.
+    #the CONTROL EMPTY first. It is the effect's transform: hosts and control
+    #points all sit on its origin, so "relative to the host" and "relative to
+    #the control empty" are one frame, and one shared set of control points
+    #can serve every system in the tree. Object Info reads control points
+    #RELATIVE, so unparented empties mean moving the effect slides it the
+    #OTHER WAY and it stays pinned to the world origin.
+    #Re-running the builder on the same .vtf REBUILDS in PLACE rather than
+    #piling up copies - but a child is a different system that happens to
+    #share a texture, so it gets its own host. Without this the child would
+    #take over the parent it was meant to follow
+    #🔴 name the host after the system, not after the texture.
+    #Naming by .vtf stem loses data: two children of one parent that share a
+    #texture - `brightglow_y` twice under one explosion, which is completely
+    #normal - resolve to the SAME object name, so the second build reuses the
+    #first one's object and node group and the first system is gone. It looks
+    #like the import merely built fewer systems than expected
+    #A .pcf system name is unique (build_hierarchy disambiguates with #2),
+    #so the importer passes it and this stays a per-system identity
     if host_name is None:
         host_name = (f"RAS · {stem}" if parent is None
                      else f"RAS · {stem} · child of {parent.name}")
@@ -491,12 +491,12 @@ def build_ras(context, path, values=None,
         host = bpy.data.objects.new(host_name, mesh)
     put(host)
 
-    # THE SLOT IS FOR PEOPLE, NOT FOR RENDERING. Set Material inside the
+    # the SLOT is FOR PEOPLE, not FOR RENDERING. Set Material inside the
     # renderer group is what actually draws the cards; without a slot the
     # host object LOOKS materialless - click it and the Shader Editor shows
     # nothing, which reads as "the shader was never built". The same
     # material in the mesh's slots makes clicking the host jump straight
-    # into editing the real shader.
+    # into editing the real shader
     try:
         slot_mat = rope_mat if (renderer or "").upper() == "ROPE" else mat
         host.data.materials.clear()
@@ -511,11 +511,11 @@ def build_ras(context, path, values=None,
     put(root)
     control_points.attach(host, root)
 
-    # THE SYSTEM GROUP IS NAMED AFTER ITS HOST, not after the texture. Two
+    # THE SYSTEM GROUP is NAMED after its HOST, not after the texture. Two
     # systems from the same .vtf - which is exactly what a parent and its
     # child usually are - would otherwise share one node group name, and the
-    # second build would clear the first one's graph out from under it.
-    # Blender guarantees object names are unique, so host names are too.
+    # second build would clear the first one's graph out from under it
+    # Blender guarantees object names are unique, so host names are too
     system = ras_system.build_system(
         f"RENDER ANIMATED SPRITES · {host.name}", mat, sequences, cols, rows,
         groups, emitter=emitter, stack=stack, renderer=renderer,
@@ -537,17 +537,17 @@ def build_ras(context, path, values=None,
                     print(f"{TAG}  tidy skipped for "
                           f"{getattr(g, 'name', '?')}: {exc}")
 
-    # ⚠️ AUTO-ARRANGE IS OFF, AND THE NUMBERS WERE NOT THE POINT.
-    # Deriving positions from the wiring scored beautifully - 28 overlapping
-    # node pairs to 0, 154 backwards links to 0 - and READ WORSE than the
-    # hand-placed layout it replaced: one section per horizontal band turned
-    # a compact graph you could take in at a glance into a tall ribbon you
-    # have to scroll. Compactness is part of readability and no counter here
-    # measures it.
+    #⚠️ AUTO-ARRANGE IS OFF, AND THE NUMBERS WERE NOT THE POINT.
+    #Deriving positions from the wiring scored beautifully - 28 overlapping
+    #node pairs to 0, 154 backwards links to 0 - and READ WORSE than the
+    #hand-placed layout it replaced: one section per horizontal band turned
+    #a compact graph you could take in at a glance into a tall ribbon you
+    #have to scroll. Compactness is part of readability and no counter here
+    #measures it.
     #
-    # Keeping it available (layout.arrange) because it is the right tool for
-    # a graph with no layout at all. It is the wrong tool for one that has a
-    # good one already.
+    #Keeping it available (layout.arrange) because it is the right tool for
+    #a graph with no layout at all. It is the wrong tool for one that has a
+    #good one already
     if fancy:
         try:
             layout.tidy(system, verbose=False)
@@ -556,12 +556,12 @@ def build_ras(context, path, values=None,
     else:
         print(f"{TAG}  fast import: node layouts skipped "
               f"(Preferences > Add-ons > HoovyTools to re-enable)")
-    #  THE PALETTE, REASSERTED EVERYWHERE. tidy() colours the system tree it
-    #  just laid out, but the shared operator groups were built and cached
-    #  before some of the colour passes existed - so every build repaints
-    #  every add-on group: section hues from tools/layout._HUES (the same
-    #  table the sidebar icons derive from) and the orange->blue flow ramp
-    #  on anything no section claims. Deterministic, so repainting is free.
+    # THE PALETTE, REASSERTED EVERYWHERE. tidy() colours the system tree it
+    # just laid out, but the shared operator groups were built and cached
+    # before some of the colour passes existed - so every build repaints
+    # every add-on group: section hues from tools/layout._HUES (the same
+    # table the sidebar icons derive from) and the orange->blue flow ramp
+    # on anything no section claims. Deterministic, so repainting is free.
     try:
         layout.recolour_all(system)
         for g in bpy.data.node_groups:
@@ -580,9 +580,9 @@ def build_ras(context, path, values=None,
         print(f"{TAG}  view transform AgX -> Standard (AgX bleaches "
               f"particle colour to white; SFM has no filmic transform)")
 
-    # ONE SET PER EFFECT. Passed in by the .pcf importer so a parent and its
+    # one SET PER EFFECT. Passed in by the .pcf importer so a parent and its
     # children read the SAME empties; spawned here when this system is the
-    # whole effect. ⚠️ NO KEYFRAME BY DEFAULT - a key at 0,0,0 on every empty
+    # whole effect. ⚠️ no KEYFRAME BY DEFAULT - a key at 0,0,0 on every empty
     # made them snap back the moment anyone scrubbed, and on a five-system
     # import that was five stacks of keyed empties nobody asked for.
     if cps is None:
@@ -606,9 +606,9 @@ def build_ras(context, path, values=None,
         if getattr(item, "item_type", "") != "SOCKET" or item.in_out != "INPUT":
             continue
         nm = item.name
-        # The CP object slots are "Control Point 0".."Control Point N". Do NOT
+        # The CP object slots are "Control Point 0".."Control Point N". Do not
         # match on the prefix alone - operators now have their own "Control
-        # Point [SFM: control_point_number]" sockets, which are ints.
+        # Point [SFM: control_point_number]" sockets, which are ints
         if nm in slots:
             # Clamped, not indexed blind: a shared set can be shorter than one
             # system's count if the file disagrees with itself, and an
@@ -620,9 +620,9 @@ def build_ras(context, path, values=None,
         elif nm == ras_system.PARENT_OBJ and parent is not None:
             _set_input(mod, item.identifier, parent)
         elif nm == ras_system.PARENT_FROM and parent is not None:
-            # What the parent's renderer left behind decides how its particles
+            # what the parent's renderer left behind decides how its particles
             # are read: sprites make one INSTANCE per particle, a rope makes a
-            # ribbon and no instances at all.
+            # ribbon and no instances at all
             _set_input(mod, item.identifier,
                        ras_ops.PARENT_FROM_VERTICES if _is_rope(parent)
                        else ras_ops.PARENT_FROM_INSTANCES)
@@ -630,15 +630,15 @@ def build_ras(context, path, values=None,
             _set_input(mod, item.identifier, values[nm])
 
     if parent is not None:
-        # Switch the operator ON - it is off by default because a system with
-        # no parent assigned should not look broken.
+        # switch the operator ON - it is off by default bc a system with
+        # no parent assigned should not look broken
         #
-        # 🔴 BUT ONLY WHEN THE AUTHORING SAYS SO. Being someone's child in
-        # the .pcf tree does NOT mean being born on their particles - that
+        # 🔴 BUT only WHEN the AUTHORING SAYS SO. Being someone's child in
+        # the .pcf tree does not mean being born on their particles - that
         # is Position From Parent Particles' job, and it is a field the file
         # either lists or does not. glow-begin (a child of glow that authors
         # its own sphere AT CP1) was riding its parent's constraint-mapped
-        # particles because this switched the operator on for EVERY child.
+        # particles bc this switched the operator on for EVERY child.
         # A hand build (stack=None) keeps the convenience: picking a parent
         # in the dialog means you want to spawn on it.
         authored = stack is None or bool(
@@ -703,7 +703,7 @@ it builds a neutral material and says so in the console."""
     # EITHER a .vmt or a .vtf. Pick the material and its $overbrightfactor
     # and $additive come with it; pick the bare texture and the material is
     # neutral, which the console says out loud rather than implying one was
-    # read.
+    # read
     filename_ext = ".vmt"
     filter_glob: StringProperty(default="*.vmt;*.vtf", options={"HIDDEN"})
 
@@ -880,8 +880,8 @@ class HTP_OT_RendererNotYet(Operator):
     reason: StringProperty(default="")
 
     def execute(self, context):
-        # Say so out loud rather than doing nothing. A dead button that
-        # silently succeeds is worse than one that admits the gap.
+        #say so out loud rather than doing nothing. A dead button that
+        #silently succeeds is worse than one that admits the gap
         self.report({"WARNING"},
                     f"{self.renderer} is not implemented yet. {self.reason}")
         print(f"{TAG}  {self.renderer}: not implemented. {self.reason}")

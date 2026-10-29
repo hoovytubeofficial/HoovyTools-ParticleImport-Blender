@@ -1,12 +1,12 @@
 # =============================================================================
-#  operators/op_support.py  -  one button that answers "send me your console"
+# operators/op_support.py  -  one button that answers "send me your console"
 # =============================================================================
 #
-#  Users reporting problems cannot be expected to fish lines out of a system
-#  console. ONE click builds a paste-ready report - scene analysis on top,
-#  every HoovyTools console line underneath - copies it to the clipboard and
-#  saves it as a Text block. They paste it in Discord; the answer is usually
-#  on the first screen (SKIPPED / FALLBACK / no .vmt found / versions).
+# Users reporting problems cannot be expected to fish lines out of a system
+# console. one click builds a paste-ready report - scene analysis on top,
+# every HoovyTools console line underneath - copies it to the clipboard and
+# saves it as a Text block. They paste it in Discord; the answer is usually
+# on the first screen (SKIPPED / FALLBACK / no .vmt found / versions)
 # =============================================================================
 
 import platform
@@ -20,11 +20,11 @@ TAG = "[HT_SUPPORT]"
 
 
 def _addon_version():
-    #  ASK FOR OURSELVES BY __package__, NEVER BY A WRITTEN-DOWN NAME.
-    #  This add-on has shipped under three folder names and the current one
-    #  has hyphens in it, which `import X` cannot spell at all. __package__
-    #  here is "<the add-on>.operators", so the first segment is the add-on
-    #  - and it is right whatever the folder is called.
+    # ASK FOR OURSELVES BY __package__, NEVER BY A WRITTEN-DOWN NAME.
+    # This add-on has shipped under three folder names and the current one
+    # has hyphens in it, which `import X` cannot spell at all. __package__
+    # here is "<the add-on>.operators", so the first segment is the add-on
+    # - and it's right whatever the folder is called
     try:
         import sys
         root = (__package__ or "").split(".")[0]
@@ -119,4 +119,4 @@ clipboard misbehaves."""
 
 
 CLASSES = (HTP_OT_CopySupport,)
-#  3.0.0: the console mark and the capture start in the add-on's own register(), before anything else prints.
+# 3.0.0: the console mark and the capture start in the add-on's own register(), before anything else prints

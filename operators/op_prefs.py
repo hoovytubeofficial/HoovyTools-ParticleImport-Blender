@@ -1,17 +1,17 @@
 # =============================================================================
-#  operators/op_prefs.py  -  Edit > Preferences > Add-ons > Source Particle Import
+# operators/op_prefs.py  -  Edit > Preferences > Add-ons > Source Particle Import
 # =============================================================================
 #
-#  YOUR PREFERRED PATHS. paths.py auto-detects the SFM install (registry,
-#  every Steam library, the common hand-rolled layouts) and that is right on
-#  most machines - these fields are for when it is wrong, or when you want a
-#  file browser opening somewhere of your own. Every field is OPTIONAL:
-#  empty means "keep auto-detecting", and a filled field simply WINS.
+# YOUR PREFERRED PATHS. paths.py auto-detects the SFM install (registry,
+# every Steam library, the common hand-rolled layouts) and that is right on
+# most machines - these fields are for when it's wrong, or when you want a
+# file browser opening somewhere of your own. Every field is OPTIONAL:
+# empty means "keep auto-detecting", and a filled field simply WINS.
 #
-#  The rest of the add-on asks THIS module where browsers should open
-#  (particles_dir(), texture_dir(), ...) - each answer is the preference if
-#  set, else the auto-detected place. paths.py itself stays bpy-free and
-#  knows nothing about preferences; this is the one place the two meet.
+# The rest of the add-on asks this module where browsers should open
+# (particles_dir(), texture_dir(), ...) - each answer is the preference if
+# set, else the auto-detected place. paths.py itself stays bpy-free and
+# knows nothing about preferences; this is the one place the two meet
 # =============================================================================
 
 from pathlib import Path
@@ -22,8 +22,8 @@ from bpy.types import AddonPreferences
 
 from .. import paths
 
-#  The AddonPreferences bl_idname must be the package Blender registered the
-#  add-on under - the TOP-LEVEL package, not this operators/ subpackage.
+# The AddonPreferences bl_idname must be the package Blender registered the
+# add-on under - the TOP-LEVEL package, not this operators/ subpackage
 _PKG = __package__.split(".")[0]
 
 
@@ -56,9 +56,9 @@ def sfm_override():
     return str(d) if d is not None else None
 
 
-#  ── what the rest of the add-on calls ────────────────────────────────────
-#  Preference first, auto-detection second. Same names as paths.py so a call
-#  site changes one word (paths.texture_dir() -> op_prefs.texture_dir()).
+# ── what the rest of the add-on calls ────────────────────────────────────
+# Preference first, auto-detection second. Same names as paths.py so a call
+# site changes one word (paths.texture_dir() -> op_prefs.texture_dir())
 
 def find_usermod():
     return paths.find_usermod(sfm_override())
@@ -87,8 +87,8 @@ def _changed(self, _context=None):
 
 
 def _rescan(self, context):
-    #  The auto-detector caches its answer; a changed override must not keep
-    #  showing the stale one.
+    #the auto-detector caches its answer; a changed override must not keep
+    #showing the stale one
     paths.refresh()
     _changed(self)
 
@@ -258,7 +258,7 @@ CLASSES = (HTP_AddonPrefs, HTP_OT_OpenPrefs)
 
 
 def register():
-    #  3.0.0: _config/config.json, when you have one, wins over what Blender saved (tools/config)
+    # 3.0.0: _config/config.json, when you have one, wins over what Blender saved (tools/config)
     from ..tools import config
     _done, problems = config.apply(prefs())
     for line in problems:

@@ -11,21 +11,21 @@ import bpy
 from mathutils import Vector
 
 VIEW = Vector((0.583, -0.813, 0.0)).normalized()
-#  With the GROUND GRID the camera looks down 15 degrees - level, the ground
-#  plane is seen edge-on and the grid collapses into a line.
+# With the GROUND GRID the camera looks down 15 degrees - level, the ground
+# plane is seen edge-on and the grid collapses into a line
 VIEW_GRID = Vector((0.583 * math.cos(math.radians(15)), -0.813 * math.cos(math.radians(15)),
                     -math.sin(math.radians(15)))).normalized()
 SAMPLES = (0.1, 0.2, 0.35, 0.5, 0.75, 1.0, 1.4, 2.0, 2.8)
 FPS = 24
 GRID_STEPS = (4, 8, 16, 32, 64, 128, 256, 512, 1024)     # Hammer units
-#  0.26.4: the most particles one system may hold IN A PREVIEW. The Episode 78
-#  lasers emit 1,000,000 a second into a cap of 1,000,000, pre-rolled 10 s: a
-#  million glow sprites stacked on the 300 points of a beam. Every probe render
-#  took longer than the last and Blender died after ~8 minutes. The stack is
-#  saturated long before a million, so a preview caps it; only those two of the
-#  1,941 library effects ever pass 20,000 (every other system peaks at 10,000 or
-#  less in a preview; huge CAPS are common - 100,000,000 on the Episode 77
-#  jetpacks - huge EMISSION is not). 100,000 still took 17 minutes an effect.
+# 0.26.4: the most particles one system may hold IN A PREVIEW. The Episode 78
+# lasers emit 1,000,000 a second into a cap of 1,000,000, pre-rolled 10 s: a
+# million glow sprites stacked on the 300 points of a beam. Every probe render
+# took longer than the last and Blender died after ~8 minutes. The stack is
+# saturated long before a million, so a preview caps it; only those two of the
+# 1,941 library effects ever pass 20,000 (every other system peaks at 10,000 or
+# less in a preview; huge CAPS are common - 100,000,000 on the Episode 77
+# jetpacks - huge EMISSION is not). 100,000 still took 17 minutes an effect
 PREVIEW_MAX_PARTICLES = 20000
 MAXP = "Max Particles [SFM: max_particles]"     # the system modifier's input (ras_system.MAXP)
 
@@ -215,8 +215,8 @@ def _ground_grid(cam, centre, radius, res):
     bm.free()
     ob = bpy.data.objects.new("preview ground grid", me)
     bpy.context.scene.collection.objects.link(ob)
-    # emission, faded to black with distance from the effect - on black,
-    # fading to black IS fading out, and an opaque grid needs no sorting
+    #emission, faded to black with distance from the effect - on black,
+    #fading to black is fading out, and an opaque grid needs no sorting
     mat = bpy.data.materials.new("preview ground grid")
     mat.use_nodes = True
     nt = mat.node_tree
@@ -258,7 +258,7 @@ def render_one(addon, job, prefs=None):
     api = importlib.import_module(addon + ".api")
     sc = bpy.context.scene
     sc.render.fps = FPS
-    # the camera FIRST: cards face the camera found at build time
+    # the camera first: cards face the camera found at build time
     cam = bpy.data.objects.new("preview camera", bpy.data.cameras.new("preview camera"))
     sc.collection.objects.link(cam)
     cam.data.lens = 50
@@ -325,7 +325,7 @@ def render_one(addon, job, prefs=None):
         except OSError:
             pass
     t_best = targets[f_best]
-    sc.frame_set(f_best)          # the simulation replays from its cache
+    sc.frame_set(f_best)          #the simulation replays from its cache
     grid = bool(job.get("grid"))
     framed = _frame_camera(cam, _instances(bpy.context.evaluated_depsgraph_get()),
                            _view(job), job.get("zoom") or 1.0)
@@ -337,7 +337,7 @@ def render_one(addon, job, prefs=None):
     if capped:
         result["capped"] = capped
     if grid and framed is not None:
-        # the effect alone first: the card crops to ITS light, so the grid
+        # the effect alone first: the card crops to its light, so the grid
         # (which lights the whole floor) never shrinks the effect on the card
         plain = job["out"] + ".plain.png"
         sc.render.filepath = plain

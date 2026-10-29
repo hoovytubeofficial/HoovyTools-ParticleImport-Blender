@@ -1,29 +1,29 @@
 # =============================================================================
-#  _textures/vtf.py  -  decode a Source .vtf to RGBA pixels  (no bpy)
+# _textures/vtf.py  -  decode a Source .vtf to RGBA pixels  (no bpy)
 # =============================================================================
 #
-#  Clean-room decode of the formats particle sprites actually ship in, so we
-#  never have to shell out to VTFEdit or lean on Source IO at runtime.
+# Clean-room decode of the formats particle sprites actually ship in, so we
+# never have to shell out to VTFEdit or lean on Source IO at runtime
 #
-#  VTF LAYOUT, in plain words
+# VTF LAYOUT, in plain words
 #  -------------------------
-#    [ header ][ (7.3+) resource dictionary ][ low-res thumbnail ][ image data ]
+# [ header ][ (7.3+) resource dictionary ][ low-res thumbnail ][ image data ]
 #
-#  Image data is stored SMALLEST MIP FIRST. So mip 0 - the full-size image we
-#  actually want - sits at the END of the block. For each mip the order is
-#  frame -> face -> z-slice.
+# Image data is stored SMALLEST MIP first. So mip 0 - the full-size image we
+# actually want - sits at the END of the block. For each mip the order is
+# frame -> face -> z-slice
 #
-#  Supported: DXT1 (BC1), DXT3 (BC2), DXT5 (BC3), and the uncompressed
-#  8-bit-per-channel layouts. Everything else raises with a clear message.
+# Supported: DXT1 (BC1), DXT3 (BC2), DXT5 (BC3), and the uncompressed
+# 8-bit-per-channel layouts. Everything else raises with a clear message.
 #
-#  Output is a float RGBA numpy array shaped (height, width, 4), top row first.
+# Output is a float RGBA numpy array shaped (height, width, 4), top row first
 # =============================================================================
 
 import struct
 
 try:
     import numpy as np
-except ImportError:                     # Blender always ships numpy
+except ImportError:                     #Blender always ships numpy
     np = None
 
 
@@ -76,7 +76,7 @@ def parse_header(data):
     frames, first_frame = struct.unpack_from("<2H", data, 24)
     # NOTE the padding: reflectivity ends at 44, then 4 bytes of padding, so
     # bumpmapScale is at 48 - NOT 44. Getting this wrong shifts every field
-    # after it and the format id reads back as a float bit pattern.
+    # after it and the format id reads back as a float bit pattern
     reflect = struct.unpack_from("<3f", data, 32)
     bump, = struct.unpack_from("<f", data, 48)
     hi_fmt, = struct.unpack_from("<I", data, 52)
@@ -242,7 +242,7 @@ def _decode_dxt(raw, w, h, name):
     idx = _bc_indices_2bit(colour)
     if name == "DXT5":
         alpha = _bc3_alpha(blocks)
-    else:                                    # DXT3: 4 bits per pixel, explicit
+    else:                                    #DXT3: 4 bits per pixel, explicit
         raw_a = blocks[:, 0:8]
         nib = np.zeros((blocks.shape[0], 16), dtype=np.uint8)
         nib[:, 0::2] = raw_a & 0x0F
@@ -275,34 +275,34 @@ def _decode_uncompressed(raw, w, h, name):
 
 # ── sprite sheet / sequence table (resource tag 0x10) ────────────────────────
 #
-#  THIS is the "how do I split the sheet" data, and it is the ONLY reliable
-#  answer - a sheet is NOT guaranteed to be a tidy grid you can eyeball.
+# this is the "how do I split the sheet" data, and it's the ONLY reliable
+# answer - a sheet is NOT guaranteed to be a tidy grid you can eyeball
 #
-#  LAYOUT (verified byte-exact against real TF2 sheets):
-#      uint32  byte_length              (= len(resource) - 4)
-#      uint32  version                  (1 in every TF2 file seen)
-#      uint32  sequence_count
-#      per sequence:
-#          uint32 sequence_id
-#          uint32 clamp                 (1 = clamp/play once, 0 = loop)
-#          uint32 frame_count
-#          float  total_time            (sum of the frame durations)
-#          per frame:
-#              float duration
-#              4 x (float u0, v0, u1, v1)     <- FOUR samples, not one
+# LAYOUT (verified byte-exact against real TF2 sheets):
+# uint32  byte_length              (= len(resource) - 4)
+# uint32  version                  (1 in every TF2 file seen)
+# uint32  sequence_count
+# per sequence:
+# uint32 sequence_id
+# uint32 clamp                 (1 = clamp/play once, 0 = loop)
+# uint32 frame_count
+# float  total_time            (sum of the frame durations)
+# per frame:
+# float duration
+# 4 x (float u0, v0, u1, v1)     <- FOUR samples, not one
 #
-#  The four samples are the spritecard's four texture slots. In practice all
-#  four are identical, so sample 0 IS the frame rect.
+# The four samples are the spritecard's four texture slots. In practice all
+# four are identical, so sample 0 is the frame rect
 #
-#  GOTCHA that cost us an afternoon: the old reader used
-#      samples_per_frame = 4 if version == 0 else 1
-#  which is BACKWARDS for version 1 - it desynced after frame 0 and reported
-#  "PARSE INCOMPLETE". With 4 samples per frame both test files consume their
-#  resource to the exact byte.
+# GOTCHA that cost us an afternoon: the old reader used
+# samples_per_frame = 4 if version == 0 else 1
+# which is BACKWARDS for version 1 - it desynced after frame 0 and reported
+# "PARSE INCOMPLETE". With 4 samples per frame both test files consume their
+# resource to the exact byte
 #
-#  UV -> PIXELS:  x0 = u0 * width,  y0 = v0 * height   (v runs DOWN from the
-#  TOP of the image). Rects carry a half-texel inset (0.0002 ~ 0.5/2048) so
-#  neighbouring frames cannot bleed in - round to the nearest pixel.
+# UV -> PIXELS:  x0 = u0 * width,  y0 = v0 * height   (v runs DOWN from the
+# TOP of the image). Rects carry a half-texel inset (0.0002 ~ 0.5/2048) so
+# neighbouring frames cannot bleed in - round to the nearest pixel
 # =============================================================================
 
 def parse_sheet(raw):
@@ -410,9 +410,9 @@ def sheet_grid(sheet, width, height):
     for f in frames:
         a, b, c, d = f["uv"]
         if abs((c - a) * width - tw) > 1.5 or abs((d - b) * height - th) > 1.5:
-            return None                      # non-uniform: rect table only
-    # Report the tile PITCH, not the inset rect: frame rects are shrunk by a
-    # half texel each side, so a 128px tile measures ~127 and would mislead.
+            return None                      #non-uniform: rect table only
+    # report the tile PITCH, not the inset rect: frame rects are shrunk by a
+    # half texel each side, so a 128px tile measures ~127 and would mislead
     cols, rows = int(round(width / tw)), int(round(height / th))
     if cols < 1 or rows < 1:
         return None
@@ -429,7 +429,7 @@ def write_png(path, rgba_u8):
     import zlib
     h, w = rgba_u8.shape[0], rgba_u8.shape[1]
     arr = np.ascontiguousarray(rgba_u8, dtype=np.uint8)
-    # PNG wants a filter byte (0 = None) in front of every scanline.
+    # PNG wants a filter byte (0 = None) in front of every scanline
     raw = np.zeros((h, w * 4 + 1), dtype=np.uint8)
     raw[:, 1:] = arr.reshape(h, w * 4)
 

@@ -1,26 +1,26 @@
 # =============================================================================
-#  GN_ToPython.py  -  export a Geometry Nodes group to EXECUTABLE Python
+# GN_ToPython.py  -  export a Geometry Nodes group to EXECUTABLE Python
 # =============================================================================
 #
-#  Paste into Blender's Text Editor. Open the geometry-node group in a Geometry
-#  Nodes editor (so it is the active tree), or set GROUP_NAME. Run it. The
-#  generated rebuild script lands on Your CLIPBOARD (and in a Text block).
-#  Paste it into another Blender session and run it to rebuild the group(s).
+# Paste into Blender's Text Editor. Open the geometry-node group in a Geometry
+# Nodes editor (so it is the active tree), or set GROUP_NAME. Run it. The
+# generated rebuild script lands on Your CLIPBOARD (and in a Text block)
+# Paste it into another Blender session and run it to rebuild the group(s)
 #
-#  Handles the things a naive dump gets wrong:
-#    - SIMULATION / REPEAT ZONES: rebuilds the output's state items and pairs
-#      the input to it, so the zone sockets actually exist before use
-#    - topology enums (data_type / operation / domain / mode) set before defaults
-#    - colour ramps (ShaderNodeValToRGB) - stops rebuilt, not dropped
-#    - nested node groups - emitted first, in dependency order
-#    - material / object pointers - fetched by name, created if absent
+# Handles the things a naive dump gets wrong:
+# - SIMULATION / REPEAT ZONES: rebuilds the output's state items and pairs
+# the input to it, so the zone sockets actually exist before use
+# - topology enums (data_type / operation / domain / mode) set before defaults
+# - colour ramps (ShaderNodeValToRGB) - stops rebuilt, not dropped
+# - nested node groups - emitted first, in dependency order
+# - material / object pointers - fetched by name, created if absent
 #
-#  RESILIENCE: every property write, socket default, and link goes through a
-#  guarded helper (_set / _sd / _lk) that skips-and-logs on failure instead of
-#  aborting. After a rebuild, check the console for "skip ..." lines - they name
-#  exactly which node still needs a handler. Nothing can hard-crash the build.
+# RESILIENCE: every property write, socket default, and link goes through a
+# guarded helper (_set / _sd / _lk) that skips-and-logs on failure instead of
+# aborting. After a rebuild, check the console for "skip ..." lines - they name
+# exactly which node still needs a handler. Nothing can hard-crash the build
 #
-#  Read-only on Your scene. Pure bpy.
+# Read-only on Your scene. Pure bpy
 # =============================================================================
 
 import bpy
@@ -32,14 +32,14 @@ INCLUDE_SCENE = True  # also recreate the host object(s) + the empties the
 MESH_VERT_CAP = 4000  # meshes up to this many verts are rebuilt inline (carrier,
                       # instance sources); bigger ones become an empty placeholder
 EMBED_IMAGES = True   # embed sprite-sheet pixels as base64 in the script, so the
-                      # rebuild is self-contained (no missing-texture sprites).
+                      # rebuild is self-contained (no missing-texture sprites)
                       # False = only reference by filepath (tiny script, but the
-                      # recipient must have the same files on disk).
+                      # recipient must have the same files on disk)
 EMBED_IMAGE_MAX_MB = 12   # per-image ceiling; above this we fall back to a
                           # filepath reference and print a loud warning. Real
                           # sprite sheets land well under this (a 2048x512 DXT5
                           # sheet is ~0.4 MB as PNG); the cap exists so one
-                          # freak 8K texture cannot produce a script no editor
+                          # freak 8K texture can't produce a script no editor
                           # wants to open.
 
 
@@ -77,12 +77,12 @@ def _active_trees():
 def _active_tree():
     if GROUP_NAME and bpy.data.node_groups.get(GROUP_NAME):
         return bpy.data.node_groups[GROUP_NAME]
-    # Prefer the TOP group of the ACTIVE OBJECT's Geometry Nodes modifier - that
+    # prefer the TOP group of the ACTIVE OBJECT's Geometry Nodes modifier - that
     # is the whole effect (host object + modifier inputs + the object refs inside
     # its nodes). Exporting a sub-group You happen to have open in the editor
     # would miss the host and the empties wired at the modifier level, which is
     # exactly how Beam Start / Beam End got dropped. So: select the effect's
-    # object, run this, and You get everything.
+    # object, run this, and You get everything
     obj = bpy.context.object
     if obj:
         for m in obj.modifiers:
@@ -98,9 +98,9 @@ def _active_tree():
                 print(f"[GN export] exporting node-editor group '{t.name}' "
                       f"(no host object active - modifier inputs won't be captured)")
                 return t
-    # LAST DITCH: nothing selected, no editor open. Guess the effect - the
-    # biggest geometry-node group. Prefer one that an object actually applies
-    # (a real top-level effect) over a stray/sub group of the same size.
+    #last DITCH: nothing selected, no editor open. Guess the effect - the
+    #biggest geometry-node group. Prefer one that an object actually applies
+    #(a real top-level effect) over a stray/sub group of the same size
     applied = set()
     for o in bpy.data.objects:
         for m in o.modifiers:
@@ -139,9 +139,9 @@ def _lit(v):
         return f"_imgref({v.name!r})"
     if isinstance(v, (bool, int, str)):
         return repr(v)
-    # NO rounding: repr() of a Python float already round-trips exactly, while
+    # no rounding: repr() of a Python float already round-trips exactly, while
     # round(v, 6) quietly mangles values - pi/2 came back as -1.570796 instead
-    # of -1.5707963705062866, and every authored angle drifted.
+    # of -1.5707963705062866, and every authored angle drifted
     if isinstance(v, float):
         return repr(v)
     try:
@@ -182,12 +182,12 @@ def _node_props(node):
         lit = _lit(val)
         if lit is None:
             continue
-        # Topology enums (input_type / data_type / domain / mode / ...) are
+        # topology enums (input_type / data_type / domain / mode / ...) are
         # ALWAYS emitted. A freshly created node's real value frequently differs
         # from the RNA-reported default, so skipping on "== default" silently
-        # left Switch nodes on Float instead of Geometry ("Conversion is not
+        # left Switch nodes on Float instead of Geometry ("Conversion isn't
         # supported: Geometry -> Float"). Non-topology props still skip when they
-        # match the default, to keep the script small.
+        # match the default, to keep the script small
         if pid not in _PROP_PRIORITY:
             try:
                 if val == getattr(p, "default", None):
@@ -230,7 +230,7 @@ def emit_tree_body(tree, L):
             continue
         parent = getattr(item, "parent", None)
         pname = getattr(parent, "name", None) if parent is not None else None
-        # The root panel has no name and must not be passed as a parent.
+        # the root panel has no name and must not be passed as a parent
         L.append(f"    s = _newsock(ng, {item.name!r}, {item.in_out!r}, "
                  f"{item.socket_type!r}, _P.get({pname!r}))")
         st = getattr(item, "subtype", "")
@@ -240,7 +240,7 @@ def emit_tree_body(tree, L):
             lit = _lit(item.default_value)
             if lit is not None:
                 L.append(f"    _set(s, 'default_value', {lit})")
-        # Int sockets reject a float min/max - cast to the socket's own type.
+        # int sockets reject a float min/max - cast to the socket's own type
         _is_int = 'Int' in getattr(item, "socket_type", "")
         for mm in ("min_value", "max_value"):
             if hasattr(item, mm):
@@ -268,7 +268,7 @@ def emit_tree_body(tree, L):
         # POINTER properties are skipped by _node_props (it only walks ENUM /
         # BOOLEAN / INT / FLOAT / STRING), so an Image Texture node's image has
         # to be written explicitly. Without this every sprite sheet is dropped
-        # and the sprites render untextured.
+        # and the sprites render untextured
         _img = getattr(n, "image", None)
         if isinstance(_img, bpy.types.Image):
             L.append(f"    _set(n, 'image', _imgref({_img.name!r}))")
@@ -322,11 +322,11 @@ def emit_tree_body(tree, L):
             except Exception:
                 pass
     for n in tree.nodes:
-        # A Reroute's socket is typeless plumbing with no writable default.
+        # A Reroute's socket is typeless plumbing with no writable default
         if n.bl_idname == 'NodeReroute':
             continue
         for i, s in enumerate(n.inputs):
-            # Write defaults even on LINKED sockets. The link wins while it is
+            # write defaults even on LINKED sockets. The link wins while it is
             # there, but the stored value is what you see the moment anyone
             # unplugs it - dropping it silently reset authored values to 0/0.5/1.
             if not hasattr(s, "default_value"):
@@ -338,22 +338,22 @@ def emit_tree_body(tree, L):
 
         # ── OUTPUT socket defaults ──────────────────────────────────────
         #
-        #  A CONSTANT NODE KEEPS ITS NUMBER ON ITS *OUTPUT*. Value, RGB,
-        #  Input Vector / Integer / Bool / String and friends have no inputs
-        #  at all - `outputs[0].default_value` IS the value. Writing only
-        #  input defaults rebuilt every one of them as ZERO.
+        # A CONSTANT NODE KEEPS its NUMBER ON its *OUTPUT*. Value, RGB,
+        # Input Vector / Integer / Bool / String and friends have no inputs
+        # at all - `outputs[0].default_value` IS the value. Writing only
+        # input defaults rebuilt every one of them as ZERO.
         #
-        #  That was not a cosmetic loss. The sprite-sheet sequence table is
-        #  built out of Value nodes, so a rebuilt effect got sequence length
-        #  0 -> "length - 1" = -1 -> every sprite sampled tile -1, off the
-        #  end of the sheet, and rendered INVISIBLE. It looked exactly like a
-        #  broken material, and the material was fine.
+        # That was not a cosmetic loss. The sprite-sheet sequence table is
+        # built out of Value nodes, so a rebuilt effect got sequence length
+        # 0 -> "length - 1" = -1 -> every sprite sampled tile -1, off the
+        # end of the sheet, and rendered INVISIBLE. It looked exactly like a
+        # broken material, and the material was fine
         #
-        #  LINKED OUTPUTS ARE WRITTEN TOO, and that is the whole point: a
-        #  Value node's output is always linked to something, and its
-        #  default_value is still where the number lives. On a computed node
-        #  (Math, Compare) the stored value is simply ignored at evaluation
-        #  time, so writing it costs nothing.
+        # LINKED OUTPUTS are WRITTEN TOO, and that's the whole point: a
+        # Value node's output is always linked to something, and its
+        # default_value is still where the number lives. On a computed node
+        # (Math, Compare) the stored value is simply ignored at evaluation
+        # time, so writing it costs nothing
         for i, s in enumerate(n.outputs):
             if not hasattr(s, "default_value"):
                 continue
@@ -936,7 +936,7 @@ def _gather_scene(trees, order):
                     objs[dv.name] = dv
                 elif isinstance(dv, bpy.types.Collection):
                     colls[dv.name] = dv
-    # (B) host objects that apply THIS group + their modifier inputs
+    # (B) host objects that apply this group + their modifier inputs
     host_specs = []
     hosts_found = 0
     for o in bpy.data.objects:
@@ -976,8 +976,8 @@ def _gather_scene(trees, order):
                     lit = _lit(val)
                     if lit is not None:
                         inputs.append((pos, "lit", lit))
-            # animation on modifier inputs - the trigger keyframes (e.g. 'Activate').
-            # Fully guarded + version-agnostic (4.4+ dropped Action.fcurves).
+            # animation on modifier inputs - the trigger keyframes (e.g. 'Activate')
+            # Fully guarded + version-agnostic (4.4+ dropped Action.fcurves)
             anim = []
             try:
               ad = getattr(o, "animation_data", None)
@@ -1007,15 +1007,15 @@ def _gather_scene(trees, order):
                     print(f"[GN export]   captured TRIGGER keyframes on input[{pos}] ({len(keys)} keys)")
             except Exception as _e:
                 print(f"[GN export]   animation capture skipped: {_e}")
-            # Carry the modifier's REAL name: keyframe data paths are written
+            # carry the modifier's REAL name: keyframe data paths are written
             # as modifiers["<name>"]..., and a user-named modifier ('shotgun')
-            # coming back as 'GeometryNodes' breaks every path that referenced it.
+            # coming back as 'GeometryNodes' breaks every path that referenced it
             host_specs.append((o.name, tree.name, inputs, anim, m.name))
     # (D) empties sharing a host's collection - the effect's control points and
-    #     Start/End endpoints live alongside the carrier. This is the reliable
-    #     catch-all: it grabs them no matter how they are wired (modifier input,
-    #     node socket, or nothing). Only EMPTY objects, so cameras/lights/meshes
-    #     in the collection are left alone.
+    # Start/End endpoints live alongside the carrier. This is the reliable
+    # catch-all: it grabs them no matter how they are wired (modifier input,
+    # node socket, or nothing). Only EMPTY objects, so cameras/lights/meshes
+    # in the collection are left alone
     for host_name, _g, _i, _a, _mn in host_specs:
         hobj = bpy.data.objects.get(host_name)
         if not hobj:
@@ -1027,10 +1027,10 @@ def _gather_scene(trees, order):
                     print(f"[GN export] pulled in empty '{co.name}' "
                           f"(shares collection '{coll.name}' with host '{host_name}')")
 
-    # (C) constraint closure: bring in objects constrained TO what we already
-    #     have, and the targets those objects are constrained to. Two-way, so a
-    #     Beam Start/End empty locked to the carrier gets pulled in even though
-    #     it is neither a node ref nor a modifier input.
+    #(C) constraint closure: bring in objects constrained TO what we already
+    #have, and the targets those objects are constrained to. Two-way, so a
+    #Beam Start/End empty locked to the carrier gets pulled in even though
+    #it's neither a node ref nor a modifier input
     def _con_targets(o):
         out = []
         for c in getattr(o, "constraints", []):
@@ -1108,8 +1108,8 @@ def emit_objects(objs, colls, host_specs):
         scl = tuple(round(float(x), 4) for x in o.scale)
         vis = _vis_spec(o)
         # RULE: ANY mesh under the cap is rebuilt with real geometry - the
-        # modifier host (carrier) AND the instance-source cards an Object Info
-        # node points at. Only non-meshes and oversized meshes become empties.
+        # modifier host (carrier) and the instance-source cards an Object Info
+        # node points at. Only non-meshes and oversized meshes become empties
         if o.type == 'MESH' and o.data and len(o.data.vertices) <= MESH_VERT_CAP:
             me = o.data
             verts = [tuple(round(float(c), 5) for c in v.co) for v in me.vertices]
@@ -1183,7 +1183,7 @@ def emit_scene(objs, colls, host_specs):
                     pass
     # Modifiers are added in capture order, which IS the stack order - a trail
     # is Base -> Resample -> Instancer and evaluating them out of order gives
-    # you a different (wrong) effect.
+    # you a different (wrong) effect
     for host_name, group_name, inputs, anim, mod_name in host_specs:
         L.append(f"    _h = bpy.data.objects.get({host_name!r})")
         L.append(f"    _m = _add_gn(_h, {group_name!r}, {mod_name!r})")

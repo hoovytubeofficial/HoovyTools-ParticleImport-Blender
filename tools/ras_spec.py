@@ -1,52 +1,52 @@
 # =============================================================================
-#  tools/ras_spec.py  -  the SFM operator catalogue
+# tools/ras_spec.py  -  the SFM operator catalogue
 # =============================================================================
 #
-#  ONE TABLE, THREE JOBS
+# one table, three jobs
 #  ---------------------
-#   1. it declares the modifier's sockets - name, type, default, range
-#   2. it records the EXACT `.pcf` attribute name behind every socket, so the
-#      importer is a lookup rather than a pile of if-statements
-#   3. it says how a SECOND instance of the same operator combines with the
-#      first, because an operator may legally appear more than once
+# 1. it declares the modifier's sockets - name, type, default, range
+# 2. it records the EXACT `.pcf` attribute name behind every socket, so the
+# importer is a lookup rather than a pile of if-statements
+# 3. it says how a SECOND instance of the same operator combines with the
+# first, bc an operator may legally appear more than once
 #
-#  EVERY NAME AND RANGE IN HERE WAS READ OUT OF REAL .pcf FILES - 97 TF2 packs,
-#  3574 system definitions - not reconstructed from memory. Where the survey
-#  disagreed with what we had built, the survey won.
+# EVERY NAME and RANGE IN HERE WAS READ out OF REAL .pcf FILES - 97 TF2 packs,
+# 3574 system definitions - not reconstructed from memory. Where the survey
+# disagreed with what we had built, the survey won
 #
-#  SOCKET NAMING CONVENTION
+# SOCKET NAMING CONVENTION
 #  ------------------------
-#      "Readable name [SFM: exact_pcf_attribute]"
-#      "Readable name #2 [SFM: exact_pcf_attribute]"     second instance
+# "Readable name [SFM: exact_pcf_attribute]"
+# "Readable name #2 [SFM: exact_pcf_attribute]"     second instance
 #
-#  Both halves matter. The readable half is what a human reads in the modifier;
-#  the bracketed half is what the importer matches on, so wiring a .pcf up is
-#  "find the socket whose SFM tag is this attribute" and nothing more.
+# Both halves matter. The readable half is what a human reads in the modifier;
+# the bracketed half is what the importer matches on, so wiring a .pcf up is
+# "find the socket whose SFM tag is this attribute" and nothing more
 #
-#  UNITS - SFM'S OWN, NOT BLENDER'S
+# units - sfm's own, not blender's
 #  --------------------------------
-#      deg    degrees. rotation_offset_min/max really do run -360..360.
-#      byte   0..255. alpha_min/max and color1/color2 are byte values, and
-#             effects DO push alpha past 255 for overbright.
-#      hu     Hammer units. 1 Blender Unit = 1 Hammer unit, so nothing is
-#             converted - the tag records what the number IS.
-#      sec    seconds.
-#      factor a plain 0..1 multiplier.
-#      count  an integer count or index.
+# deg    degrees. rotation_offset_min/max really do run -360..360
+# byte   0..255. alpha_min/max and color1/color2 are byte values, and
+# effects do push alpha past 255 for overbright.
+# hu     Hammer units. 1 Blender Unit = 1 Hammer unit, so nothing is
+# converted - the tag records what the number is.
+# sec    secs.
+# factor a plain 0..1 multiplier
+# count  an integer count or index
 #
-#  Conversion to Blender's internal convention (degrees -> radians, byte ->
-#  0..1) happens INSIDE the node group that consumes it, never in the socket.
-#  The number you type is the number SFM shows you.
+# Conversion to Blender's internal convention (degrees -> radians, byte ->
+# 0..1) happens INSIDE the node group that consumes it, never in the socket.
+# The number you type is the number SFM shows you
 # =============================================================================
 
 
 # =============================================================================
-#  THE COMMON OPERATOR ENVELOPE
+# THE COMMON OPERATOR ENVELOPE
 # =============================================================================
-#  Present on EVERY operator in the survey without exception - all 42183 of
-#  them. That is what makes stacking useful rather than merely legal: two
-#  Velocity Noises with different fade windows are two different gusts, and the
-#  envelope is how you offset one against the other.
+# Present on EVERY operator in the survey without exception - all 42183 of
+# them. That is what makes stacking useful rather than merely legal: two
+# Velocity Noises with different fade windows are two different gusts, and the
+# envelope is how you offset one against the other
 
 ENVELOPE = (
     ("Start Fade In", "operator start fadein", "NodeSocketFloat", 0.0,
@@ -63,37 +63,37 @@ ENVELOPE = (
 
 
 # =============================================================================
-#  HOW A SECOND INSTANCE COMBINES WITH THE FIRST
+# how a second instance combines with the first
 # =============================================================================
 #
-#  ADD        the contributions sum. Velocity and position initializers work
-#             this way - Velocity Random already ADDS to the sphere's outward
-#             velocity, which is how SFM stacks them.
-#  LAST_WINS  each instance WRITES the field, so the last one in the list is
-#             the value the particle ends up with. Lifetime, radius, alpha,
-#             colour, roll and sequence are all plain setters.
-#  CHAIN      each instance takes the previous instance's result as its input
-#             and modifies it. The alpha fades already work like this, which is
-#             why a particle can fade in and out.
+# ADD        the contributions sum. Velocity and position initializers work
+# this way - Velocity Random already ADDS to the sphere's outward
+# velocity, which is how SFM stacks them
+# LAST_WINS  each instance WRITES the field, so the last one in the list is
+# the value the particle ends up with. Lifetime, radius, alpha,
+# colour, roll and sequence are all plain setters.
+# CHAIN      each instance takes the previous instance's result as its input
+# and modifies it. The alpha fades already work like this, which is
+# why a particle can fade in and out.
 #
-#  ⚠️ These are the rules for the operators below. They are NOT universal:
-#  Remap-family operators read one field and write another, and stacking those
-#  correctly needs the read/write pair modelled, which is not done yet.
+# ⚠️ These are the rules for the operators below. They are not universal:
+# Remap-family operators read one field and write another, and stacking those
+# correctly needs the read/write pair modelled, which is not done yet.
 
 ADD, LAST_WINS, CHAIN = "ADD", "LAST_WINS", "CHAIN"
 
 
 # =============================================================================
-#  OPERATORS WE DO NOT BUILD BECAUSE THEY ALREADY HAPPEN
+# OPERATORS WE DO NOT BUILD BECAUSE THEY ALREADY HAPPEN
 # =============================================================================
-#  Not the same thing as "not built". `Lifespan Decay` has NO fields at all
-#  beyond the envelope in any of its 1127 uses - it is the operator that kills
-#  a particle when its age passes its lifetime, and this build does that
-#  unconditionally inside the simulation zone.
+# Not the same thing as "not built". `Lifespan Decay` has NO fields at all
+# beyond the envelope in any of its 1127 uses - it is the operator that kills
+# a particle when its age passes its lifetime, and this build does that
+# unconditionally inside the simulation zone.
 #
-#  Listed so the importer can say "already handled" instead of reporting 1127
-#  systems as having lost something. A warning you have to learn to ignore is
-#  worse than no warning at all.
+# Listed so the importer can say "already handled" instead of reporting 1127
+# systems as having lost something. A warning you have to learn to ignore is
+# worse than no warning at all
 
 ALREADY_HANDLED = {
     "Lifespan Decay": "particles are deleted at end of life by the emitter",
@@ -101,22 +101,22 @@ ALREADY_HANDLED = {
 
 
 # =============================================================================
-#  WHICH FIELDS NAME A CONTROL POINT
+# WHICH FIELDS NAME A CONTROL POINT
 # =============================================================================
-#  A control point socket cannot carry a fixed maximum in this table, because
-#  the maximum belongs to the SYSTEM, not to the operator: an effect with two
-#  empties tops out at 1 and one with forty-one tops out at 40. These were
-#  pinned at 3, which quietly made every reference above CP3 unselectable - and
-#  8% of TF2 asks for more than four control points.
+# A control point socket can't carry a fixed maximum in this table, because
+# the maximum belongs to the SYSTEM, not to the operator: an effect with two
+# empties tops out at 1 and one with forty-one tops out at 40. These were
+# pinned at 3, which quietly made every reference above CP3 unselectable - and
+# 8% of TF2 asks for more than four control points
 #
-#  So the table says None and `build_system` clamps each one to the count it is
-#  actually building for. This predicate is how it recognises them.
+# So the table says None and `build_system` clamps each one to the count it's
+# actually building for. This predicate is how it recognises them.
 #
-#  The exclusions mirror tools/pcf.py, which is the authority: plenty of
-#  attributes contain the words "control point" without being an index -
-#  "...Parent", "...Location", "control point movement distance tolerance",
-#  "scale emission to used control points" (a flag), and "# of control points
-#  to set" (a SPAN LENGTH that pairs with "First control point to set").
+# The exclusions mirror tools/pcf.py, which is the authority: plenty of
+# attributes contain the words "control point" w/o being an index -
+# "...Parent", "...Location", "control point movement distance tolerance",
+# "scale emission to used control points" (a flag), and "# of control points
+# to set" (a SPAN LENGTH that pairs with "First control point to set")
 
 _CP_NOT_AN_INDEX = ("parent", "location", "tolerance", "distribute",
                     "scale emission", "field", "offset for",
@@ -132,16 +132,16 @@ def is_control_point_field(sfm):
 
 
 # =============================================================================
-#  THE CATALOGUE
+# THE CATALOGUE
 # =============================================================================
-#  fields: (display, sfm attribute, socket type, default, min, max, unit)
-#  ignored: attributes seen in real files that this build does NOT honour yet.
-#           Kept so the importer can WARN about what it is dropping instead of
-#           silently pretending the effect came through intact.
+# fields: (display, sfm attribute, socket type, default, min, max, unit)
+# ignored: attributes seen in real files that this build does not honour yet
+# Kept so the importer can WARN about what it is dropping instead of
+# silently pretending the effect came through intact
 
 OPERATORS = {
 
-    # ── EMITTER ──────────────────────────────────────────────────────────
+    # ── emitter ──────────────────────────────────────────────────────────
     "emit_continuously": dict(
         section="EMITTER", category="EMITTER", stack=ADD, envelope=True,
         seen=2244,
@@ -166,7 +166,7 @@ OPERATORS = {
              0.0, None, None, "sec"),
             ("Num To Emit", "num_to_emit", "NodeSocketFloat", 100.0,
              0.0, None, "count"),
-            # -1 means "not used" - emit exactly num_to_emit.
+            # -1 means "not used" - emit exactly num_to_emit
             ("Num To Emit Min", "num_to_emit_minimum", "NodeSocketFloat",
              -1.0, None, None, "count"),
         ),
@@ -178,7 +178,7 @@ OPERATORS = {
              "emission.",
     ),
 
-    # ── INITIALIZERS ─────────────────────────────────────────────────────
+    #── INITIALIZERS ─────────────────────────────────────────────────────
     "Velocity Noise": dict(
         section="INITIALIZER", category="INITIALIZER", stack=ADD,
         envelope=True, seen=361,
@@ -240,7 +240,7 @@ OPERATORS = {
         envelope=True, seen=2385,
         fields=(
             # 0..255, NOT 0..1. Real files go to 1000 for overbright, so the
-            # socket is not clamped at 255 either.
+            # socket is not clamped at 255 either
             ("Alpha Min", "alpha_min", "NodeSocketInt", 255, 0, None, "byte"),
             ("Alpha Max", "alpha_max", "NodeSocketInt", 255, 0, None, "byte"),
             ("Alpha Exponent", "alpha_random_exponent", "NodeSocketFloat",
@@ -253,8 +253,8 @@ OPERATORS = {
         envelope=True, seen=2536,
         fields=(
             # SFM stores these as 0..255 bytes and shows you a colour picker.
-            # A Blender colour socket IS a picker, so the swatch is the honest
-            # equivalent; the importer divides the .pcf bytes by 255.
+            # A Blender colour socket is a picker, so the swatch is the honest
+            # equivalent; the importer divides the .pcf bytes by 255
             ("Color 1", "color1", "NodeSocketColor", (1.0, 1.0, 1.0, 1.0),
              None, None, "byte"),
             ("Color 2", "color2", "NodeSocketColor", (1.0, 1.0, 1.0, 1.0),
@@ -299,12 +299,12 @@ OPERATORS = {
     "Position Within Sphere Random": dict(
         section="INITIALIZER", category="INITIALIZER", stack=ADD,
         envelope=True, seen=2569,
-        # 🔴 DEFAULTS ARE THE ENGINE'S, NOT PLAUSIBLE NUMBERS. A .pcf OMITS
-        # every attribute that equals the engine default (a real laser's
-        # sphere element carries nothing but 'operator help and notes'), and
-        # whatever sits here is what those systems get. Distance Max used to
-        # default 10.0 - so every point-emitting system imported as a ten-
-        # unit BALL of scatter the author never wrote. Source's default is 0.
+        #🔴 DEFAULTS ARE THE ENGINE'S, not PLAUSIBLE NUMBERS. A .pcf OMITS
+        #every attribute that equals the engine default (a real laser's
+        #sphere element carries nothing but 'operator help and notes'), and
+        #whatever sits here is what those systems get. Distance Max used to
+        #default 10.0 - so every point-emitting system imported as a ten-
+        #unit BALL of scatter the author never wrote. Source's default is 0.
         fields=(
             ("Control Point", "control_point_number", "NodeSocketInt", 0,
              0, None, "count"),
@@ -312,9 +312,9 @@ OPERATORS = {
              None, None, "hu"),
             ("Distance Max", "distance_max", "NodeSocketFloat", 0.0,
              None, None, "hu"),
-            # A RATIO, not a distance - never multiplied by Scale. (1,1,1)
-            # is a sphere, (1,1,0) a flat disc: the direction is squashed
-            # componentwise and re-normalized inside the group.
+            #A RATIO, not a distance - never multiplied by Scale. (1,1,1)
+            #is a sphere, (1,1,0) a flat disc: the direction is squashed
+            #componentwise and re-normalized inside the group
             ("Distance Bias", "distance_bias", "NodeSocketVector",
              (1.0, 1.0, 1.0), None, None, "factor"),
             ("Speed Min", "speed_min", "NodeSocketFloat", 0.0,
@@ -322,7 +322,7 @@ OPERATORS = {
             ("Speed Max", "speed_max", "NodeSocketFloat", 0.0,
              None, None, "hu"),
             # rolls 0..1 ^ exponent before mapping onto min..max: 0.5 biases
-            # fast, values above 1 bias slow. 1 is the engine default.
+            # fast, values above 1 bias slow. 1 is the engine default
             ("Speed Exponent", "speed_random_exponent", "NodeSocketFloat",
              1.0, 0.001, None, "factor"),
             ("Local Speed Min", "speed_in_local_coordinate_system_min",
@@ -336,12 +336,12 @@ OPERATORS = {
                  "randomly distribution growth time"),
     ),
 
-    #  THE GLOBAL POSITION NUDGE. 1017 systems in the TF2 corpus and over a
-    #  thousand of this library's files use it - it was the single most
-    #  common operator the importer still dropped. Each component of the
-    #  offset is rolled independently between Min and Max, so equal Min and
-    #  Max is a FIXED offset (the common authoring: lift a flash half a unit
-    #  off the ground) and a symmetric range is scatter.
+    # THE GLOBAL POSITION NUDGE. 1017 systems in the TF2 corpus and over a
+    # thousand of this library's files use it - it was the single most
+    # common operator the importer still dropped. Each component of the
+    # offset is rolled independently between Min and Max, so equal Min and
+    # Max is a FIXED offset (the common authoring: lift a flash half a unit
+    # off the ground) and a symmetric range is scatter.
     "Position Modify Offset Random": dict(
         section="INITIALIZER", category="INITIALIZER", stack=ADD,
         envelope=True, seen=1017,
@@ -350,8 +350,8 @@ OPERATORS = {
              (0.0, 0.0, 0.0), None, None, "hu"),
             ("Offset Max", "offset max", "NodeSocketVector",
              (0.0, 0.0, 0.0), None, None, "hu"),
-            # Rotates the offset into the control point's frame. Authored in
-            # 413 of this library's uses, so it is wired, not ignored.
+            #rotates the offset into the control point's frame. Authored in
+            #413 of this library's uses, so it's wired, not ignored
             ("Local Space", "offset in local space 0/1", "NodeSocketBool",
              False, None, None, "factor"),
         ),
@@ -363,11 +363,11 @@ OPERATORS = {
              "control_point_number is rare (8 uses) and reported, not built.",
     ),
 
-    #  0.26.3: the beam-maker's curve with the place along it ROLLED per
-    #  particle - Source's C_INIT_CreateAlongPath. HoovyTube's smoke rows
-    #  spawn their puffs anywhere on CP1 -> CP2 with it; before it was built,
-    #  every puff spawned on CP0 in one clump. Source's own defaults (start 0,
-    #  end 0, bulge 0, mid 0.5) - a file states what it changes.
+    #0.26.3: the beam-maker's curve with the place along it ROLLED per
+    #particle - Source's C_INIT_CreateAlongPath. HoovyTube's smoke rows
+    #spawn their puffs anywhere on CP1 -> CP2 with it; before it was built,
+    #every puff spawned on CP0 in one clump. Source's own defaults (start 0,
+    #end 0, bulge 0, mid 0.5) - a file states what it changes
     "Position Along Path Random": dict(
         section="INITIALIZER", category="INITIALIZER", stack=ADD,
         envelope=True, seen=3068,
@@ -405,7 +405,7 @@ OPERATORS = {
             ("Bulge", "bulge", "NodeSocketFloat", 0.0, None, None, "hu"),
             # 0 random per particle · 1 the START point's orientation ·
             # 2 the END point's. The field name IS the documentation, which
-            # is why the .pcf spells the whole thing out.
+            # is why the .pcf spells the whole thing out
             ("Bulge Control",
              "bulge control 0=random 1=orientation of start pnt "
              "2=orientation of end point",
@@ -439,25 +439,25 @@ OPERATORS = {
         ),
     ),
 
-    # ── TRAIL LENGTH ─────────────────────────────────────────────────────
+    #── TRAIL LENGTH ─────────────────────────────────────────────────────
     #
-    #  🔴 THE FIELD THAT EXPLAINS THE WHOLE TRAIL, AND ITS NAME LIES.
+    #🔴 THE FIELD THAT EXPLAINS THE WHOLE TRAIL, AND ITS NAME LIES.
     #
-    #  `length_min` / `length_max` here are NOT lengths. They are SECONDS -
-    #  how much of the particle's own travel the trail represents. The
-    #  renderer multiplies the particle's SPEED by this number, so:
+    #`length_min` / `length_max` here are not lengths. They are SECONDS -
+    #how much of the particle's own travel the trail represents. The
+    #renderer multiplies the particle's SPEED by this number, so:
     #
-    #      a spark at 600 HU/s with length 0.2  ->  120 HU of trail
-    #      the same spark at 60 HU/s            ->   12 HU of trail
+    #a spark at 600 HU/s with length 0.2  ->  120 HU of trail
+    #the same spark at 60 HU/s            ->   12 HU of trail
     #
-    #  That is why a trail stretches when the particle is fast and shrinks as
-    #  drag slows it down, without anything animating the length.
+    #That is why a trail stretches when the particle is fast and shrinks as
+    #drag slows it down, w/o anything animating the length
     #
-    #  And it is why this operator and render_sprite_trail seem to fight: this
-    #  one is in SECONDS, the renderer's `min length` / `max length` are in
-    #  HAMMER UNITS. Two fields called "length", two different quantities.
-    #  The corpus shows it plainly - length_min tops out at 20 while the
-    #  renderer's max length reaches 5000.
+    #And it's why this operator and render_sprite_trail seem to fight: this
+    #one is in SECONDS, the renderer's `min length` / `max length` are in
+    #HAMMER UNITS. Two fields called "length", two different quantities
+    #The corpus shows it plainly - length_min tops out at 20 while the
+    #renderer's max length reaches 5000.
     "Trail Length Random": dict(
         section="INITIALIZER", category="INITIALIZER", stack=LAST_WINS,
         envelope=True, seen=520,
@@ -477,22 +477,22 @@ OPERATORS = {
     ),
 
     # ── CHILDREN ─────────────────────────────────────────────────────────
-    #  A child system is a system in its own right. What makes it a CHILD is
-    #  this operator: it spawns on top of the parent's living particles
-    #  instead of on a control point.
+    # A child system is a system in its own right. What makes it a CHILD is
+    # this operator: it spawns on top of the parent's living particles
+    # instead of on a control point.
     "Position From Parent Particles": dict(
         section="CHILDREN", category="INITIALIZER", stack=LAST_WINS,
         envelope=True, seen=241,
         fields=(
-            # The survey's range is -1 .. 7 with an average of 0.2, so most
+            # the survey's range is -1 .. 7 with an average of 0.2, so most
             # authors inherit a fifth of the parent's motion. NEGATIVE is a
             # real authoring choice: the child flies back the way the parent
-            # came.
+            # came
             ("Inherited Velocity Scale", "Inherited Velocity Scale",
              "NodeSocketFloat", 0.0, None, None, "factor"),
             # true in 9 of 241 uses. Off, a child takes the parent whose
             # number matches its own, so a stream of children traces the
-            # parents in order; on, it takes any of them.
+            # parents in order; on, it takes any of them
             ("Random Parent Distribution",
              "Random Parent Particle Distribution", "NodeSocketBool", False,
              None, None, "factor"),
@@ -509,9 +509,9 @@ OPERATORS = {
         fields=(
             ("Gravity", "gravity", "NodeSocketVector", (0.0, 0.0, 0.0),
              None, None, "hu"),
-            # NOT clamped at zero: the survey found drag from -1 to 0.9, and
-            # negative drag is a real authoring choice - motion amplifies
-            # instead of damping.
+            #not clamped at zero: the survey found drag from -1 to 0.9, and
+            #negative drag is a real authoring choice - motion amplifies
+            #instead of damping.
             ("Drag", "drag", "NodeSocketFloat", 0.0, None, None, "factor"),
         ),
         ignored=("max constraint passes",),
@@ -566,9 +566,9 @@ OPERATORS = {
         ignored=("fade bias", "ease in and out"),
     ),
 
-    #  THE SIMPLE FADES - one number each, and this library leans on them
-    #  hard: 4168 and 3021 uses. They are the Random fades with the roll
-    #  taken out: the time is a fixed FRACTION OF LIFE for every particle.
+    # the SIMPLE FADES - one number each, and this library leans on them
+    # hard: 4168 and 3021 uses. They are the Random fades with the roll
+    # taken out: the time is a fixed FRACTION OF LIFE for every particle
     "Alpha Fade In Simple": dict(
         section="OPERATOR", category="OPERATOR", stack=CHAIN, envelope=True,
         seen=4168,
@@ -592,11 +592,11 @@ OPERATORS = {
              "particle's life, measured back from death.",
     ),
 
-    #  THE BEAM-HOLDER: puts particle n at fraction (n mod map)/map of the way
-    #  from the start CP to the end CP and KEEPS it there - in this build the
-    #  path position is evaluated from the live control point empties every
-    #  frame, so "maintain" comes free. 511 uses in this library; holograms
-    #  author it with start == end to pin a glow exactly ON a control point.
+    #THE BEAM-HOLDER: puts particle n at fraction (n mod map)/map of the way
+    #from the start CP to the end CP and KEEPS it there - in this build the
+    #path position is evaluated from the live control point empties every
+    #frame, so "maintain" comes free. 511 uses in this library; holograms
+    #author it with start == end to pin a glow exactly ON a control point
     "Movement Maintain Position Along Path": dict(
         section="OPERATOR", category="OPERATOR", stack=LAST_WINS,
         envelope=True, seen=511,
@@ -625,11 +625,11 @@ OPERATORS = {
              "and gravity still apply on top.",
     ),
 
-    #  THE DISTANCE-DRIVEN TAPER. Hologram beams author it: the particle's
-    #  CURRENT distance to a control point is remapped into radius (or
-    #  alpha), clamped to output min/max - which is the "cap". A pure
-    #  function of the evaluated position, so it stays exact at any frame
-    #  rate.
+    # THE DISTANCE-DRIVEN TAPER. Hologram beams author it: the particle's
+    # CURRENT distance to a control point is remapped into radius (or
+    # alpha), clamped to output min/max - which is the "cap". A pure
+    # function of the evaluated position, so it stays exact at any frame
+    # rate
     "Remap Distance to Control Point to Scalar": dict(
         section="OPERATOR", category="OPERATOR", stack=CHAIN, envelope=True,
         seen=628,
@@ -645,7 +645,7 @@ OPERATORS = {
             ("Output Max", "output maximum", "NodeSocketFloat", 1.0,
              None, None, "factor"),
             # Source's field ids: 3 = radius, 7 = alpha. Only those two are
-            # wired - anything else leaves the particle untouched.
+            # wired - anything else leaves the particle untouched
             ("Output Field", "output field", "NodeSocketInt", 3,
              0, None, "count"),
             ("Scale Initial", "output is scalar of initial random range",
@@ -658,8 +658,8 @@ OPERATORS = {
              "Initial multiplies the rolled value instead of replacing it.",
     ),
 
-    # 2001 uses in 2001 systems, in 92 of the 97 packs - THE most common
-    # alpha operator in TF2 and the biggest single gap in the importer.
+    # 2001 uses in 2001 systems, in 92 of the 97 packs - the most common
+    # alpha operator in TF2 and the biggest single gap in the importer
     "Alpha Fade and Decay": dict(
         section="OPERATOR", category="OPERATOR", stack=CHAIN, envelope=True,
         seen=2001,
@@ -668,21 +668,21 @@ OPERATORS = {
              0.0, None, "factor"),
             ("End Alpha", "end_alpha", "NodeSocketFloat", 0.0,
              0.0, None, "factor"),
-            # LIFE FRACTIONS, not seconds: the corpus keeps fade-in inside
-            # 0..1 and averages 0.26, which only reads as a proportion.
+            #LIFE FRACTIONS, not secs: the corpus keeps fade-in inside
+            #0..1 and averages 0.26, which only reads as a proportion
             #
-            # 🔴 THE DISPLAY NAMES MUST NOT BE "Start Fade In" ETC. Those are
-            # the ENVELOPE's display names, and every operator carries the
-            # envelope - so the builder's (operator, display) socket lookup
-            # resolved these four to the ENVELOPE sockets, which default to
-            # zero. A zero-width fade-out window starting at 0 clamps every
-            # particle straight to End Alpha = 0: THE most common alpha
-            # operator in TF2 made every sprite it touched INVISIBLE. The
-            # sanity check under ENVELOPE now refuses any operator that
-            # shadows an envelope display name.
+            #🔴 the DISPLAY NAMES must not BE "Start Fade In" ETC. Those are
+            #the ENVELOPE's display names, and every operator carries the
+            #envelope - so the builder's (operator, display) socket lookup
+            #resolved these four to the ENVELOPE sockets, which default to
+            #zero. A zero-width fade-out window starting at 0 clamps every
+            #particle straight to End Alpha = 0: THE most common alpha
+            #operator in TF2 made every sprite it touched INVISIBLE. The
+            #sanity check under ENVELOPE now refuses any operator that
+            #shadows an envelope display name.
             ("Fade In Start", "start_fade_in_time", "NodeSocketFloat", 0.0,
              None, None, "factor"),
-            # 0.24.1: SOURCE'S DEFAULTS ARE 0.5 / 0.5 - measured, the
+            # 0.24.1: SOURCE'S DEFAULTS are 0.5 / 0.5 - measured, the
             # default fade-out starts at half-life (0.24.0 assumed 0.25 /
             # 0.75). A .pcf only stores what differs from the default, so a
             # wrong default changes every system that left it alone.
@@ -701,7 +701,7 @@ OPERATORS = {
              "by simply never completing.",
     ),
 
-    # 1493 uses. Fades the particle's colour towards a second colour.
+    # 1493 uses. Fades the particle's colour towards a second colour
     "Color Fade": dict(
         section="OPERATOR", category="OPERATOR", stack=CHAIN, envelope=True,
         seen=1493,
@@ -710,9 +710,9 @@ OPERATORS = {
              None, None, "byte"),
             # SECONDS here, unlike the alpha operator above - 0.05..6 with an
             # average of 0.8 is a time, not a proportion. Two neighbouring
-            # operators, two different meanings for "time".
+            # operators, two different meanings for "time"
             # 0.24.1: FRACTIONS OF LIFE, MEASURED - kit 2's fade to black ran
-            # across the whole 4 s life, eased (0.24.0 read seconds).
+            # across the whole 4 s life, eased (0.24.0 read seconds)
             ("Fade Start Time", "fade_start_time", "NodeSocketFloat", 0.0,
              None, None, "factor"),
             ("Fade End Time", "fade_end_time", "NodeSocketFloat", 1.0,
@@ -734,7 +734,7 @@ OPERATORS = {
              0.0, None, "factor"),
             # 0.24.1: FRACTIONS OF LIFE, MEASURED - not seconds. Kit 2's
             # default row grew across the WHOLE 4 s life, and end_time 0.25
-            # was full at a quarter of it. (0.24.0 read seconds off the
+            # was full at a quarter of it. (0.24.0 read secs off the
             # corpus ranges; start_time 5 just means "never".)
             ("Start Time", "start_time", "NodeSocketFloat", 0.0,
              None, None, "factor"),
@@ -745,7 +745,7 @@ OPERATORS = {
             # 0.24.1: Source's BiasSIMD, t / ((1/b - 2)(1 - t) + 1), measured:
             # bias 0.95 is ~60% of the way at 1/16 of life and ~90% by a
             # third - the dust cloud of the concrete impacts, which grew over
-            # a second without it.
+            # a second without it
             ("Scale Bias", "scale_bias", "NodeSocketFloat", 0.5,
              0.0, 1.0, "factor"),
         ),
@@ -781,7 +781,7 @@ OPERATORS = {
              "DIFFERENT thing: a real angle, only visible on orientation 2.",
     ),
 
-    # ── FORCE GENERATOR ──────────────────────────────────────────────────
+    #── FORCE GENERATOR ──────────────────────────────────────────────────
     "random force": dict(
         section="FORCE GENERATOR", category="FORCE", stack=ADD, envelope=True,
         seen=539,
@@ -829,12 +829,12 @@ OPERATORS = {
              "Treated as a DIRECTION through control point 0.",
     ),
 
-    # ── RENDERER ─────────────────────────────────────────────────────────
+    # ── renderer ─────────────────────────────────────────────────────────
     "render_rope": dict(
         section="RENDERER", category="RENDERER", stack=LAST_WINS,
         envelope=True, seen=231,
         fields=(
-            # The WHOLE of render_rope in a real .pcf. Three fields.
+            # The WHOLE of render_rope in a real .pcf. Three fields
             ("Texel Size", "texel_size", "NodeSocketFloat", 0.1,
              0.0, None, "factor"),
             ("Texture Scroll Rate", "texture_scroll_rate", "NodeSocketFloat",
@@ -854,7 +854,7 @@ OPERATORS = {
             ("Animation Rate", "animation rate", "NodeSocketFloat", 0.1,
              0.0, None, "count"),
             # HAMMER UNITS - unlike Trail Length Random's length_min/max,
-            # which are seconds. This is the clamp on the FINISHED length.
+            # which are secs. This is the clamp on the FINISHED length.
             ("Min Length", "min length", "NodeSocketFloat", 1.0,
              0.0, None, "hu"),
             ("Max Length", "max length", "NodeSocketFloat", 2048.0,
@@ -863,9 +863,9 @@ OPERATORS = {
             # from birth (every streak in kit 2's spark row was 22.6 units).
             ("Length Fade In Time", "length fade in time", "NodeSocketFloat",
              0.0, 0.0, None, "sec"),
-            # NOT IN THE TF2 CORPUS - none of the 484 uses writes it, so it
-            # is either newer than these packs or only saved when non-default.
-            # It is a real SFM field and it is the one that stops a slow
+            # not in THE TF2 CORPUS - none of the 484 uses writes it, so it
+            # is either newer than these packs or only saved when non-default
+            # It is a real SFM field and it's the one that stops a slow
             # particle drawing a trail wider than it is long, so it is exposed
             # with the flag on its name rather than left out.
             ("Constrain Radius To Length", "constrain radius to length",
@@ -894,11 +894,11 @@ OPERATORS = {
              False, None, None, "factor"),
             ("Orientation Type", "orientation_type", "NodeSocketInt", 0,
              0, 2, "count"),
-            # -1 IS SOURCE'S DEFAULT AND IT MEANS "NOT BOUND TO ANY CONTROL
+            # -1 is source's default and it means "not bound to any control
             # POINT" - orientation stays in world axes, so a type-2 card lies
             # flat on the ground no matter how the empties are rotated. It
             # was pinned at 0 here, which silently glued every unauthored
-            # system's orientation to CP0.
+            # system's orientation to CP0
             ("Orientation Control Point", "orientation control point",
              "NodeSocketInt", -1, -1, None, "count"),
         ),
@@ -926,12 +926,12 @@ OPERATORS = {
              "foreshortening, cos(yaw) on the card's X scale.",
     ),
 
-    # ── CONSTRAINT ───────────────────────────────────────────────────────
+    # ── constraint ───────────────────────────────────────────────────────
 
-    #  The path constraint's SIMPLER SIBLING (106 corpus uses): the same
-    #  radial clamp around ONE control point - no travel, no envelope
-    #  interpolation, just "stay between min and max of this point". The
-    #  centre can be offset (conc_stars lifts it 5 units off the ground).
+    # The path constraint's SIMPLER SIBLING (106 corpus uses): the same
+    # radial clamp around ONE control point - no travel, no envelope
+    # interpolation, just "stay between min and max of this point". The
+    # centre can be offset (conc_stars lifts it 5 units off the ground)
     "Constrain distance to control point": dict(
         section="CONSTRAINT", category="CONSTRAINT", stack=CHAIN,
         envelope=True, seen=106,
@@ -945,32 +945,32 @@ OPERATORS = {
             ("Center Offset", "offset of center", "NodeSocketVector",
              (0.0, 0.0, 0.0), None, None, "hu"),
         ),
-        #  global center point flips the offset from CP-local to world
-        #  space - False in every corpus use sampled; reported if authored.
+        # global center point flips the offset from CP-local to world
+        # space - False in every corpus use sampled; reported if authored
         ignored=("global center point",),
         note="clamp each particle between Minimum and Maximum Distance of "
              "one control point (plus a CP-local Center Offset). MAX WINS "
              "over MIN where they cross, same as its path sibling.",
     ),
 
-    #  🔴 THE MISSING HALF OF EVERY WILD BEAM. beam (king).pcf authors a
-    #  random force of ±1255 with drag 0.001 - terminal velocity ~42000
-    #  HU/s - and the author never meant that motion to be SEEN raw: this
-    #  constraint is the leash that turns it into crackle. Without it the
-    #  beam shot off into infinity, which is exactly what "a constraint is
-    #  missing" looks like.
+    #🔴 THE MISSING HALF OF every WILD BEAM. beam (king).pcf authors a
+    #random force of ±1255 with drag 0.001 - terminal velocity ~42000
+    #HU/s - and the author never meant that motion to be SEEN raw: this
+    #constraint is the leash that turns it into crackle. Without it the
+    #beam shot off into infinity, which is exactly what "a constraint is
+    #missing" looks like
     #
-    #  It clamps each particle to within a distance envelope of an ANCHOR
-    #  travelling along the start-CP → end-CP path over Travel Time. The
-    #  envelope is Maximum Distance at departure, Middle halfway, End on
-    #  arrival - beam (king) authors 7.5 → 12.5 → 0, so the crackle blooms
-    #  and then pinches ONTO the path. A -1 middle/end means "same as
-    #  Maximum Distance" (the engine's own sentinel). MAX WINS over MIN
-    #  when they cross - authored end 0 with min 1 pins to the path.
+    #It clamps each particle to within a distance envelope of an ANCHOR
+    #travelling along the start-CP → end-CP path over Travel Time. The
+    #envelope is Maximum Distance at departure, Middle halfway, End on
+    #arrival - beam (king) authors 7.5 → 12.5 → 0, so the crackle blooms
+    #and then pinches ONTO the path. A -1 middle/end means "same as
+    #Maximum Distance" (the engine's own sentinel). MAX WINS over MIN
+    #when they cross - authored end 0 with min 1 pins to the path.
     #
-    #  Applied to the FINAL position, after forces and the lock - a pure
-    #  function of (position, age), so it costs no integration and stays
-    #  exact at any frame rate.
+    #Applied to the FINAL position, after forces and the lock - a pure
+    #function of (position, age), so it costs no integration and stays
+    #exact at any frame rate
     "Constrain distance to path between two control points": dict(
         section="CONSTRAINT", category="CONSTRAINT", stack=CHAIN,
         envelope=True, seen=82,
@@ -993,16 +993,16 @@ OPERATORS = {
              0.5, None, None, "factor"),
             ("Random Bulge", "random bulge", "NodeSocketFloat",
              0.0, None, None, "factor"),
-            #  0 rolls a bow direction per particle; 1/2 take the start/end
-            #  CP's own up axis through its rotation - rotate the empty and
-            #  the bow follows. Same convention as the path initializer.
+            # 0 rolls a bow direction per particle; 1/2 take the start/end
+            # CP's own up axis through its rotation - rotate the empty and
+            # the bow follows. Same convention as the path initializer
             ("Bulge Control",
              "bulge control 0=random 1=orientation of start pnt "
              "2=orientation of end point",
              "NodeSocketInt", 0, 0, 2, "count"),
         ),
-        #  travel time scale field scales travel time by another
-        #  per-particle field - rare, and reported.
+        # travel time scale field scales travel time by another
+        # per-particle field - rare, and reported.
         ignored=("travel time scale field",),
         note="the beam leash: position is clamped to within min..max of an "
              "anchor travelling start CP -> end CP over Travel Time, with "
@@ -1012,12 +1012,12 @@ OPERATORS = {
 
 
 # 🔴 NO OPERATOR MAY NAME A FIELD THE WAY THE ENVELOPE NAMES ITS FIVE.
-#  The builder looks sockets up by (operator, display name), and the envelope
-#  is appended to every operator's field list - so a shadowed display name
-#  silently resolves to the ENVELOPE socket, whose default is 0. That is how
-#  Alpha Fade and Decay wired its fade windows to zeros and made every sprite
-#  it touched invisible. Refuse the catalogue outright rather than let the
-#  next collision ship.
+# The builder looks sockets up by (operator, display name), and the envelope
+# is appended to every operator's field list - so a shadowed display name
+# silently resolves to the ENVELOPE socket, whose default is 0. That is how
+# Alpha Fade and Decay wired its fade windows to zeros and made every sprite
+# it touched invisible. Refuse the catalogue outright rather than let the
+# next collision ship
 _ENV_DISPLAYS = {f[0] for f in ENVELOPE}
 for _op, _ospec in OPERATORS.items():
     _shadow = _ENV_DISPLAYS & {f[0] for f in _ospec["fields"]}
@@ -1028,19 +1028,19 @@ for _op, _ospec in OPERATORS.items():
 
 
 # =============================================================================
-#  WHICH OPERATORS REALLY DO APPEAR TWICE
+# WHICH OPERATORS REALLY DO APPEAR TWICE
 # =============================================================================
-#  Counted across 97 TF2 .pcf packs / 3574 system definitions. "systems" is how
-#  many systems use the operator at all; "dupes" how many use it more than
-#  once; "max" the most instances found in a single system.
+# Counted across 97 TF2 .pcf packs / 3574 system definitions. "systems" is how
+# many systems use the operator at all; "dupes" how many use it more than
+# once; "max" the most instances found in a single system
 #
-#  It is a small fraction of uses - 377 of 42183, 0.9% - but it is spread over
-#  30 different operators, and for some it is the NORM rather than the
-#  exception: Remap Initial Distance to Control Point to Scalar is duplicated
-#  in 40 of the 76 systems that use it at all.
+# It is a small fraction of uses - 377 of 42183, 0.9% - but it is spread over
+# 30 different operators, and for some it is the NORM rather than the
+# exception: Remap Initial Distance to Control Point to Scalar is duplicated
+# in 40 of the 76 systems that use it at all
 
 DUPLICATED_IN_THE_WILD = {
-    # operator: (systems, systems with >1, most in one system)
+    #operator: (systems, systems with >1, most in one system)
     "Remap Initial Distance to Control Point to Scalar": (76, 40, 4),
     "Radius Scale": (2469, 75, 3),
     "Rotation Spin Roll": (538, 58, 2),
@@ -1075,19 +1075,19 @@ DUPLICATED_IN_THE_WILD = {
 
 
 # =============================================================================
-#  RESEARCHED BUT NOT BUILT
+# researched but not built
 # =============================================================================
-#  Exact field names and value ranges, read out of the TF2 + Black Mesa packs.
-#  Everything here is one step from being implementable; what is missing is
-#  noted per entry, not hand-waved.
+# Exact field names and value ranges, read out of the TF2 + Black Mesa packs.
+# Everything here is one step from being implementable; what is missing is
+# noted per entry, not hand-waved
 #
-#  THE DIVIDING LINE IS POSITION DEPENDENCE. Every operator we have built is a
-#  pure function of AGE - it can be evaluated in closed form, which is why the
-#  preview is exact at any frame rate and idempotent under re-evaluation. An
-#  operator whose force depends on WHERE THE PARTICLE IS cannot be: the force
-#  changes the position, which changes the force. Those need per-frame velocity
-#  integration, which the simulation zone could carry but which trades away
-#  that exactness. That is a deliberate decision, not an oversight.
+# the DIVIDING LINE IS POSITION DEPENDENCE. Every operator we have built is a
+# pure function of AGE - it can be evaluated in closed form, which is why the
+# preview is exact at any frame rate and idempotent under re-evaluation. An
+# operator whose force depends on where the PARTICLE is can't be: the force
+# changes the position, which changes the force. Those need per-frame velocity
+# integration, which the simulation zone could carry but which trades away
+# that exactness. That is a deliberate decision, not an oversight
 
 NOT_BUILT = {
     "Rotation Spin Yaw": dict(
@@ -1124,8 +1124,8 @@ NOT_BUILT = {
                       "is. Needs per-frame integration.",
         fields=("amount of force", "twist axis", "object local space axis 0/1"),
     ),
-    # "Movement Maintain Position Along Path" moved OUT of this list - it is
-    # built now, sharing Position Along Path Sequential's curve group.
+    #"Movement Maintain Position Along Path" moved OUT of this list - it's
+    #built now, sharing Position Along Path Sequential's curve group
     "Position Along Path Sequential": dict(
         seen=130, why="same curve machinery, as an INITIALIZER instead - "
                       "particle N is placed at fraction N/count along the "
@@ -1172,7 +1172,7 @@ NOT_BUILT = {
 
 
 # =============================================================================
-#  SOCKET NAMING
+# socket naming
 # =============================================================================
 
 _AMBIGUOUS = None

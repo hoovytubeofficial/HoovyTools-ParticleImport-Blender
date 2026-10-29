@@ -1,30 +1,30 @@
 ﻿# =============================================================================
-#  tools/ras_system.py  -  the top-level RENDER ANIMATED SPRITES system
+# tools/ras_system.py  -  the top-level RENDER ANIMATED SPRITES system
 # =============================================================================
 #
-#  Wires every operator group from ras_nodes.py into one modifier whose panels
-#  are SFM's own sections:
+# Wires every operator group from ras_nodes.py into one modifier whose panels
+# are SFM's own sections:
 #
-#      CONTROL POINTS · SYSTEM PROPERTIES · RENDERER · EMITTER
-#      INITIALIZER · OPERATOR · FORCE GENERATOR · CONSTRAINT · CHILDREN
+# CONTROL POINTS · SYSTEM PROPERTIES · RENDERER · EMITTER
+# INITIALIZER · OPERATOR · FORCE GENERATOR · CONSTRAINT · CHILDREN
 #
-#  Every operator has its own ENABLE toggle, and switching one off falls back
-#  to a fixed value rather than breaking the chain.
+# Every operator has its own ENABLE toggle, and switching one off falls back
+# to a fixed value rather than breaking the chain
 #
-#  TWO EMITTERS, ONE GRAPH DOWNSTREAM
+# two emitters, one graph downstream
 #  ----------------------------------
-#  "SIMULATION" (default) remembers particles in a Simulation Zone. A particle
-#  is real geometry created at the control point's position ON THE FRAME IT WAS
-#  BORN, and it is never recomputed - so position memory is free and a moving
-#  emitter stops dragging its own past around behind it. Play from frame 1.
+# "SIMULATION" (default) remembers particles in a Simulation Zone. A particle
+# is real geometry created at the control point's position ON the FRAME IT WAS
+# BORN, and it is never recomputed - so position memory is free and a moving
+# emitter stops dragging its own past around behind it. Play from frame 1
 #
-#  "STATELESS" is the original ring of recycled slots. Every particle's whole
-#  life is derived from the clock, so you can scrub backwards and it stays
-#  correct - but it cannot remember where a control point USED to be.
+# "STATELESS" is the original ring of recycled slots. Every particle's whole
+# life is derived from the clock, so you can scrub backwards and it stays
+# correct - but it can't remember where a control point USED to be
 #
-#  Only the emitter and the base position differ. Every operator group is a
-#  pure function of age, particle id, lifetime and the control points, so all
-#  of them are shared, unchanged, between the two paths.
+# Only the emitter and the base position differ. Every operator group is a
+# pure function of age, particle id, lifetime and the control points, so all
+# of them are shared, unchanged, between the two paths
 # =============================================================================
 
 from . import ras_spec as spec
@@ -38,10 +38,10 @@ CAMSRC = "Camera Source [NOT SFM: 0 active · 1 socket · 2 viewport]"
 ROPE_HALF = "Half Width [NOT SFM]"
 ROPE_OFFSET = "Texture Offset [NOT SFM]"
 
-# CHILDREN. Neither is an SFM field: in SFM a child is a child because it sits
-# inside its parent's definition, and there is nothing to point AT. Here the
-# two systems are two objects, so the child has to be told which object its
-# parent is - and what its parent's renderer left behind to read.
+#CHILDREN. Neither is an SFM field: in SFM a child is a child because it sits
+#inside its parent's definition, and there's nothing to point AT. Here the
+#two systems are two objects, so the child has to be told which object its
+#parent is - and what its parent's renderer left behind to read
 PARENT_OBJ = "Parent System [NOT SFM: the parent's host object]"
 PARENT_FROM = ("Parent Particles From "
                "[NOT SFM: 0 instances · 1 points · 2 vertices]")
@@ -51,56 +51,56 @@ PARENT_FROM = ("Parent Particles From "
 # limit: 8% of TF2 wants more, and one system wants forty-one.
 DEFAULT_CONTROL_POINTS = 4
 
-# The five fields every SFM operator carries, in the order the envelope
-# group takes them.
+#the five fields every SFM operator carries, in the order the envelope
+#group takes them
 ENV_FIELDS = ("Start Fade In", "End Fade In", "Start Fade Out",
               "End Fade Out", "Fade Oscillate")
 
-# Which operators start switched ON. Everything else defaults to on because a
-# freshly built system should show you something.
+# which operators start switched ON. Everything else defaults to on because a
+# freshly built system should show you something
 OFF_BY_DEFAULT = ("Velocity Random", "Movement Lock to Control Point",
                   "random force", "Rotation Yaw Flip Random",
                   "Velocity Noise", "emit_instantaneously",
                   "Pull towards control point", "twist around axis",
-                  # A system is not a child until you hand it a parent, and
+                  # A system isn't a child until you hand it a parent, and
                   # switched on with an empty Parent socket it would look
                   # broken rather than idle.
                   "Position From Parent Particles",
-                  # 🔴 AN OPERATOR THAT CHANGES THE PICTURE MUST NOT ARRIVE
-                  # SWITCHED ON. Color Fade's default target is WHITE, so
-                  # every hand-built system quietly washed out over its first
-                  # second and the tint test went from red to blank. A .pcf
-                  # import switches on exactly what the FILE lists; anything
-                  # else is the builder inventing authoring nobody asked for.
+                  #🔴 AN OPERATOR THAT CHANGES THE PICTURE MUST NOT ARRIVE
+                  #SWITCHED ON. Color Fade's default target is WHITE, so
+                  #every hand-built system quietly washed out over its first
+                  #second and the tint test went from red to blank. A .pcf
+                  #import switches on exactly what the FILE lists; anything
+                  #else is the builder inventing authoring nobody asked for.
                   "Alpha Fade and Decay", "Color Fade",
-                  # 🔴 IT DECIDES WHERE EVERY PARTICLE IS BORN. On by default
+                  # 🔴 IT DECIDES WHERE every PARTICLE is BORN. On by default
                   # it quietly dragged particles a fraction of the way towards
                   # CP1 in a system that had never heard of a path - caught
                   # measuring something else entirely, as a "pull towards
                   # control point" that still moved with the force set to
-                  # zero.
+                  # zero
                   "Position Along Path Sequential",
-                  # 🔴 IT DECIDES WHERE EVERY PARTICLE MAY GO. A constraint
+                  # 🔴 IT DECIDES where EVERY PARTICLE MAY GO. A constraint
                   # switched on by default would leash systems that never
-                  # authored one; the importer enables what the file lists.
+                  # authored one; the importer enables what the file lists
                   "Constrain distance to path between two control points",
-                  # Squishes every card it touches - importer-enabled only.
+                  # squishes every card it touches - importer-enabled only
                   "Rotation Yaw Random",
-                  # Same reason as its path sibling.
+                  # same reason as its path sibling
                   "Constrain distance to control point",
-                  # 🔴 SETTERS MUST NOT ARRIVE SWITCHED ON. Maintain Path
+                  # 🔴 SETTERS must not ARRIVE SWITCHED ON. Maintain Path
                   # would pin every particle to CP0 (start = end = 0), and
                   # the Remap would overwrite every radius with its 0..1
                   # default range. The Simple fades would add a fade nobody
                   # authored. A .pcf import switches ON exactly what the
-                  # file lists.
+                  # file lists
                   "Movement Maintain Position Along Path",
                   "Remap Distance to Control Point to Scalar",
                   "Alpha Fade In Simple", "Alpha Fade Out Simple")
 
 # Which operators this build can genuinely run more than one of, and how the
 # instances combine. See ras_spec.DUPLICATED_IN_THE_WILD for how often real
-# files actually do it.
+# files actually do it
 STACKABLE = {
     "Lifetime Random": spec.LAST_WINS,
     "Radius Random": spec.LAST_WINS,
@@ -128,8 +128,8 @@ STACKABLE = {
     "Alpha Fade Out Simple": spec.CHAIN,
     "Alpha Fade and Decay": spec.CHAIN,
     "Color Fade": spec.CHAIN,
-    # Chained remaps: each SETS its field when its field id matches, so the
-    # last one targeting the same field wins and different fields coexist.
+    #chained remaps: each SETS its field when its field id matches, so the
+    #last one targeting the same field wins and different fields coexist.
     "Remap Distance to Control Point to Scalar": spec.CHAIN,
 }
 
@@ -158,11 +158,11 @@ def build_system(name, mat, sequences, cols, rows, groups,
                  emitter="SIMULATION", stack=None,
                  renderer="ANIMATED_SPRITES",
                  cp_count=DEFAULT_CONTROL_POINTS, rects=None):
-    # HOW MANY CONTROL POINTS THIS SYSTEM HAS IS AN ARGUMENT, not a constant.
+    # HOW MANY CONTROL POINTS this SYSTEM HAS is AN ARGUMENT, not a constant.
     # It used to be four everywhere, which silently made every reference above
     # CP3 unreachable - and the corpus has systems asking for 5, 10, 11, 35 and
     # 41. The graph is generated for the count, and every "control point
-    # number" socket is clamped to it.
+    # number" socket is clamped to it
     cp_count = cpmod.clamp_count(cp_count, DEFAULT_CONTROL_POINTS)
     ng = _group(name, "GeometryNodeTree")
     set_structure(ng.interface.new_socket(
@@ -173,15 +173,15 @@ def build_system(name, mat, sequences, cols, rows, groups,
     sim = (emitter or "SIMULATION").upper() == "SIMULATION"
     rope = (renderer or "ANIMATED_SPRITES").upper() == "ROPE"
     trail = (renderer or "").upper() == "SPRITE_TRAIL"
-    # Which renderer's fields the shared sprite-sheet maths reads. A rope has
+    # which renderer's fields the shared sprite-sheet maths reads. A rope has
     # no sheet at all; the other two both do, and both call the field
     # "animation rate" - but they are different sockets on different
     # operators, and taking the wrong one silently animates nothing.
     rend_op = "render_sprite_trail" if trail else "render_animated_sprites"
     if rope and not sim:
-        # A rope is a TRAIL - it is threaded through particles in birth order,
+        # A rope is a TRAIL - it's threaded through particles in birth order,
         # and the stateless ring has no birth order to thread. Say so rather
-        # than draw a tangle.
+        # than draw a tangle
         print("[HT_RAS]  render_rope needs the SIMULATION emitter "
               "(the stateless ring has no birth order to thread) - "
               "switching to it.")
@@ -192,10 +192,10 @@ def build_system(name, mat, sequences, cols, rows, groups,
     # and then re-homed with interface.move_to_parent().
     P = {}
 
-    #  EVERY PANEL STARTS CLOSED. The modifier then opens as a short list of
-    #  section titles - CONTROL POINTS, EMITTER, OPERATOR... - and the reader
-    #  opens the one they came for, instead of scrolling past every field of
-    #  every operator to find it.
+    # every PANEL STARTS CLOSED. The modifier then opens as a short list of
+    # section titles - CONTROL POINTS, EMITTER, OPERATOR... - and the reader
+    # opens the one they came for, instead of scrolling past every field of
+    # every operator to find it.
     def panel(title, closed=True, parent=None):
         pn = ng.interface.new_panel(title, default_closed=closed)
         if parent is not None:
@@ -229,8 +229,8 @@ def build_system(name, mat, sequences, cols, rows, groups,
     for i in range(cp_count):
         sk("CONTROL POINTS", f"Control Point {i}", "NodeSocketObject")
     sk("CONTROL POINTS", "Camera", "NodeSocketObject")
-    # NOT an SFM field - SFM has one camera and never has to ask.
-    #   0 active camera (default)   1 the socket above   2 the viewport
+    # not an SFM field - SFM has one camera and never has to ask.
+    # 0 active camera (default)   1 the socket above   2 the viewport
     sk("CONTROL POINTS", CAMSRC, "NodeSocketInt", 0, smin=0, smax=2)
 
     panel("SYSTEM PROPERTIES")
@@ -238,47 +238,47 @@ def build_system(name, mat, sequences, cols, rows, groups,
     # 1.0 ON PURPOSE. Internal particle space IS Hammer units - 1 Blender Unit
     # = 1 SFM unit - so operator parameters are never multiplied by 0.01905
     # on the way in. Turning metres on is a DISPLAY choice, made once, by the
-    # person looking at it next to a human-scale character.
+    # person looking at it next to a human-scale character
     sk("SYSTEM PROPERTIES", "Scale", "NodeSocketFloat", 1.0, smin=0.0)
     sk("SYSTEM PROPERTIES", "Seed", "NodeSocketInt", 0)
-    #  THE EFFECT'S OWN TIMELINE. Everything in this graph runs on SECONDS
-    #  (Scene Time's seconds output), so the scene frame rate - 24, 30, 60 -
-    #  never changes the effect. These two remap scene seconds into effect
-    #  seconds:
-    #      effect time = (scene seconds - Time Offset) x Time Scale
-    #  Offset delays the whole effect (the import dialog's Start Time lands
-    #  here); Scale is the slow-motion knob - 0.5 runs at half speed, 0
-    #  freezes. ⚠️ A CONSTANT, not a curve: keyframing it warps the clock
-    #  the maths derives everything from.
+    # the EFFECT'S own TIMELINE. Everything in this graph runs on SECONDS
+    # (Scene Time's seconds output), so the scene frame rate - 24, 30, 60 -
+    # never changes the effect. These two remap scene secs into effect
+    # seconds:
+    # effect time = (scene secs - Time Offset) x Time Scale
+    # Offset delays the whole effect (the import dialog's Start Time lands
+    # here); Scale is the slow-motion knob - 0.5 runs at half speed, 0
+    # freezes. ⚠️ A CONSTANT, not a curve: keyframing it warps the clock
+    # the maths derives everything from
     sk("SYSTEM PROPERTIES", "Time Offset", "NodeSocketFloat", 0.0)
     sk("SYSTEM PROPERTIES", "Time Scale", "NodeSocketFloat", 1.0, smin=0.0)
-    #  NOT SFM - the low-GPU stand-in: quarter-size cards, no material. The
-    #  Developer tab's Proxy View button flips this on every built system at
-    #  once; this socket is the per-system override.
+    # not SFM - the low-GPU stand-in: quarter-size cards, no material. The
+    # Developer tab's Proxy View button flips this on every built system at
+    # once; this socket is the per-system override
     sk("SYSTEM PROPERTIES", "Proxy View", "NodeSocketBool", False)
 
-    # ── one panel per OPERATOR INSTANCE, generated from the catalogue ─────
+    #── one panel per OPERATOR INSTANCE, generated from the catalogue ─────
     #
-    #  AN OPERATOR MAY APPEAR MORE THAN ONCE. In 97 TF2 packs, 30 different
-    #  operators do - two emit_continuously, three Velocity Noises, six Remap
-    #  Initial Scalars. So the modifier is not a fixed list of panels: it is
-    #  generated from `stack`, a count per operator, and each instance gets its
-    #  own panel, its own ENABLE toggle and its own copy of every field
-    #  INCLUDING the five envelope fields. That last part is the point - two
-    #  Velocity Noises are only useful because they can fade in and out at
-    #  different times.
+    #AN OPERATOR MAY APPEAR MORE THAN once. In 97 TF2 packs, 30 different
+    #operators do - two emit_continuously, three Velocity Noises, six Remap
+    #Initial Scalars. So the modifier isn't a fixed list of panels: it's
+    #generated from `stack`, a count per operator, and each instance gets its
+    #own panel, its own ENABLE toggle and its own copy of every field
+    #INCLUDING the five envelope fields. That last part is the point - two
+    #Velocity Noises are only useful because they can fade in and out at
+    #different times.
     #
-    #  count 0 means the operator is not in this system at all, which is what
-    #  importing a real .pcf mostly needs.
+    #count 0 means the operator is not in this system at all, which is what
+    #importing a real .pcf mostly needs
     counts = {op: 1 for op in spec.OPERATORS}
     # One renderer per system. The other's panel would only be a control that
-    # does nothing.
+    # does nothing
     counts["render_rope"] = 1 if rope else 0
     counts["render_sprite_trail"] = 1 if trail else 0
     counts["render_animated_sprites"] = 0 if (rope or trail) else 1
     # Trail Length Random only means anything to a trail: it sets how many
     # SECONDS of travel the streak stands for. On any other renderer it would
-    # be a panel that does nothing.
+    # be a panel that does nothing
     counts["Trail Length Random"] = 1 if trail else 0
     for op, n in (stack or {}).items():
         if op not in spec.OPERATORS:
@@ -305,8 +305,8 @@ def build_system(name, mat, sequences, cols, rows, groups,
                         spec.fields_for(op):
                     nm = spec.socket_name(disp, sfm, inst, op)
                     # A CONTROL POINT SOCKET'S CEILING BELONGS TO THE SYSTEM.
-                    # The catalogue cannot know it - it is however many empties
-                    # this effect was built with.
+                    # The catalogue cannot know it - it's however many empties
+                    # this effect was built with
                     if spec.is_control_point_field(sfm):
                         hi = cp_count - 1
                     sk(title, nm, stype, dflt, lo, hi)
@@ -320,9 +320,9 @@ def build_system(name, mat, sequences, cols, rows, groups,
     if rope:
         # NOT SFM. Source takes the ribbon's half-width from the particle
         # radius alone; this is a plain multiplier on top, so a trail can be
-        # widened without touching Radius Random. Texture Offset is the same
+        # widened w/o touching Radius Random. Texture Offset is the same
         # kind of convenience - a real .pcf carries only the three fields
-        # the spec lists.
+        # the spec lists
         sk(spec.panel_name("render_rope"), ROPE_HALF, "NodeSocketFloat", 1.0,
            0.0, None)
         sk(spec.panel_name("render_rope"), ROPE_OFFSET, "NodeSocketFloat", 0.0)
@@ -331,10 +331,10 @@ def build_system(name, mat, sequences, cols, rows, groups,
     operator_panels("CONSTRAINT")
 
     # ── CHILDREN ─────────────────────────────────────────────────────────
-    #  1148 of 3574 systems in the corpus have children - a third of TF2. A
-    #  child is a WHOLE system in its own right, so it is a second object with
-    #  its own modifier; what makes it a child is that it is born on its
-    #  parent's particles instead of on a control point.
+    # 1148 of 3574 systems in the corpus have children - a third of TF2. A
+    # child is a whole system in its own right, so it is a second object with
+    # its own modifier; what makes it a child is that it's born on its
+    # parent's particles instead of on a control point
     panel("CHILDREN", closed=True)
     sk("CHILDREN", PARENT_OBJ, "NodeSocketObject")
     sk("CHILDREN", PARENT_FROM, "NodeSocketInt", 0, 0, 2)
@@ -363,9 +363,9 @@ def build_system(name, mat, sequences, cols, rows, groups,
         return counts[op]
 
     # ── control points ───────────────────────────────────────────────────
-    #  AS MANY AS THE SYSTEM ASKED FOR. They read down the screen in rows of
-    #  eight and then step left, because forty-one of them in one column is a
-    #  graph nobody can navigate.
+    # AS MANY AS the SYSTEM ASKED FOR. They read down the screen in rows of
+    # eight and then step left, because forty-one of them in one column is a
+    # graph nobody can navigate
     cps = []
     for i in range(cp_count):
         col, row = divmod(i, 8)
@@ -410,7 +410,7 @@ def build_system(name, mat, sequences, cols, rows, groups,
                             "lock CP")
     # Only the sprite renderer has an orientation control point. A rope's
     # facing comes from the camera along its whole length, and a trail's from
-    # its own velocity - neither has the field in any real .pcf.
+    # its own velocity - neither has the field in any real .pcf
     if rope or trail:
         orient_rot, n4 = None, []
     else:
@@ -439,12 +439,12 @@ effect slides the other way and stays pinned to the world origin.
 
     scene_clock = _nd(ng, "GeometryNodeInputSceneTime", (-2580, -960),
                       "the clock", role="TIME")
-    #  ── THE EFFECT'S OWN TIMELINE ────────────────────────────────────────
-    #  Scene Time's SECONDS output (0) is what everything reads, which is
-    #  why the frame rate never matters - 24 and 30 fps produce the same
-    #  effect at the same second. Offset and Scale then remap scene seconds
-    #  into effect seconds; every consumer below reads the remapped clock,
-    #  so the whole closed-form graph slows, delays and freezes as one.
+    # ── the effect's own timeline ────────────────────────────────────────
+    # Scene Time's SECONDS output (0) is what everything reads, which is
+    # why the frame rate never matters - 24 and 30 fps produce the same
+    # effect at the same second. Offset and Scale then remap scene secs
+    # into effect seconds; every consumer below reads the remapped clock,
+    # so the whole closed-form graph slows, delays and freezes as one
     t_off = _nd(ng, "ShaderNodeMath", (-2400, -960), "- time offset",
                 role="TIME", operation="SUBTRACT")
     _lk(ng, scene_clock, 0, t_off, 0)
@@ -455,7 +455,7 @@ effect slides the other way and stays pinned to the world origin.
     _lk(ng, gi, g("Time Scale"), clock, 1)
 
     # =====================================================================
-    #  EMITTER  -  the one place the two architectures differ
+    # EMITTER  -  the one place the two architectures differ
     # =====================================================================
     emitter_nodes = []
 
@@ -463,7 +463,7 @@ effect slides the other way and stays pinned to the world origin.
         # A particle's IDENTITY and BIRTH TIME are attributes stored on the
         # point when it was created. Everything else about it is recomputed
         # from that id every frame, so tweaking Radius or Lifetime in the
-        # modifier still updates live without replaying the simulation.
+        # modifier still updates live w/o replaying the simulation
         pid_read = _nd(ng, "GeometryNodeInputNamedAttribute", (-2100, -1000),
                        "particle_id [read]", role="EMITTER", data_type="INT")
         _sv(pid_read, 0, "particle_id")
@@ -480,7 +480,7 @@ effect slides the other way and stays pinned to the world origin.
         _lk(ng, birth_read, 0, age_n, 1)
         AGE = (age_n, 0)
         BIRTH = (birth_read, 0)
-        # Points never move inside the zone, so Position IS the spawn point.
+        # points never move inside the zone, so Position is the spawn point
         spawn_pos = _nd(ng, "GeometryNodeInputPosition", (-2100, -1320),
                         "where it was born", role="EMITTER")
         SPAWN = (spawn_pos, 0)
@@ -508,12 +508,12 @@ effect slides the other way and stays pinned to the world origin.
         _lk(ng, maxp, 0, emit, 2)
         _lk(ng, gi, gs("emit_continuously", "Emission Rate"), emit, 3)
         _lk(ng, gi, gs("emit_continuously", "Emission Start Time"), emit, 4)
-        # THE LONGEST LIFETIME A PARTICLE CAN ACTUALLY ROLL. Random Value does
-        # not care which way round Min and Max are - it happily returns values
-        # up to whichever is LARGER. Feeding the emitter only "Lifetime Max"
-        # meant that with Min 5 / Max 2 the ring was sized for two seconds
-        # while particles rolled five-second lifetimes, so EVERY particle was
-        # recycled at age 2 and vanished in mid-air. Take the real maximum.
+        #the LONGEST LIFETIME A PARTICLE CAN ACTUALLY ROLL. Random Value does
+        #not care which way round Min and Max are - it happily returns values
+        #up to whichever is LARGER. Feeding the emitter only "Lifetime Max"
+        #meant that with Min 5 / Max 2 the ring was sized for two seconds
+        #while particles rolled five-second lifetimes, so every particle was
+        #recycled at age 2 and vanished in mid-air. Take the real maximum
         longest = _nd(ng, "ShaderNodeMath", (-2380, -1580),
                       "longest lifetime a particle can roll", role="EMITTER",
                       operation="MAXIMUM")
@@ -554,19 +554,19 @@ effect slides the other way and stays pinned to the world origin.
 
     # ── initializers - identical either way, all pure functions of the id ──
     #
-    #  STACKING. Every operator is built once PER INSTANCE and the instances
-    #  are then folded together by the rule in STACKABLE:
+    # STACKING. Every operator is built once PER INSTANCE and the instances
+    # are then folded together by the rule in STACKABLE:
     #
-    #    LAST_WINS  an initializer WRITES its field, so the last instance is
-    #               the value the particle keeps - but only if it is ENABLED,
-    #               so the fold goes through a Switch on that instance's own
-    #               toggle rather than blindly taking the last one
-    #    ADD        contributions sum, which is already how Velocity Random
-    #               stacks on top of the sphere's outward velocity
+    # LAST_WINS  an initializer WRITES its field, so the last instance is
+    # the value the particle keeps - but only if it is ENABLED,
+    # so the fold goes thru a Switch on that instance's own
+    # toggle rather than blindly taking the last one
+    # ADD        contributions sum, which is already how Velocity Random
+    # stacks on top of the sphere's outward velocity
     #
-    #  Every instance also has its own ENVELOPE, and that is what makes two of
-    #  the same operator worth having: two velocity operators fading in and out
-    #  at different times are two different gusts, not one louder one.
+    # Every instance also has its own ENVELOPE, and that's what makes two of
+    # the same operator worth having: two velocity operators fading in and out
+    # at different times are two different gusts, not one louder one
 
     def _in(node, sname):
         """A group node's input socket BY NAME.
@@ -689,8 +689,8 @@ effect slides the other way and stays pinned to the world origin.
     roll = folded["Rotation Random"]
 
     # ── INITIALIZER · Trail Length Random ────────────────────────────────
-    #  SECONDS of travel, drawn once at birth like every other initializer.
-    #  The renderer turns it into units by multiplying the particle's speed.
+    # SECONDS of travel, drawn once at birth like every other initializer
+    # The renderer turns it into units by multiplying the particle's speed
     trail_len = None
     if n_of("Trail Length Random") and groups.get("trail_length") is not None:
         op = "Trail Length Random"
@@ -749,12 +749,12 @@ effect slides the other way and stays pinned to the world origin.
     sphere = sphere_made[0] if sphere_made else None
 
     # ── INITIALIZER · Position Modify Offset Random ──────────────────────
-    #  THE GLOBAL SPAWN NUDGE, and the most-used operator this importer used
-    #  to drop on the floor - over a thousand systems in this library carry
-    #  one. It ADDS onto the sphere placement below, which is exactly how
-    #  SFM stacks position initializers. Local Space turns the nudge with
-    #  the sphere's control point frame (a separate control_point_number is
-    #  8-uses rare and reported instead of built).
+    # the GLOBAL SPAWN NUDGE, and the most-used operator this importer used
+    # to drop on the floor - over a thousand systems in this library carry
+    # one. It ADDS onto the sphere placement below, which is exactly how
+    # SFM stacks position initializers. Local Space turns the nudge with
+    # the sphere's control point frame (a separate control_point_number is
+    # 8-uses rare and reported instead of built)
     offset_made = []
     op_off = "Position Modify Offset Random"
     for inst in range(1, n_of(op_off) + 1):
@@ -772,9 +772,9 @@ effect slides the other way and stays pinned to the world origin.
         offset_made.append(n)
         initializer_nodes.append(n)
 
-    # Several position initializers ADD their offsets - stacked sphere
+    # several position initializers ADD their offsets - stacked sphere
     # placements first, then every global offset nudge - the same way SFM
-    # stacks them.
+    # stacks them
     pos_total = None
     for i, n in enumerate(sphere_made + offset_made):
         if pos_total is None:
@@ -787,24 +787,24 @@ effect slides the other way and stays pinned to the world origin.
         pos_total = (a, 0)
         initializer_nodes.append(a)
 
-    # ── INITIALIZER  ·  Position Along Path Sequential ───────────────────
-    #  THE BEAM-MAKER, and the one position initializer that is a SETTER: it
-    #  does not offset the particle from its control point, it puts the
-    #  particle at an absolute place on the line between TWO of them. So it
-    #  arrives at the spawn origin rather than in the offset pile below.
-    #  TWO OPERATORS SHARE THE CURVE. Position Along Path Sequential SETS the
-    #  spot once at birth; Movement Maintain Position Along Path HOLDS the
-    #  particle there for its whole life. In this build both read the live
-    #  control point empties every evaluation, so the initializer already
-    #  behaves like "maintain" whenever the empties move - one group serves
-    #  both, they only differ in which sockets feed it.
+    #── INITIALIZER  ·  Position Along Path Sequential ───────────────────
+    #THE BEAM-MAKER, and the one position initializer that's a SETTER: it
+    #does not offset the particle from its control point, it puts the
+    #particle at an absolute place on the line between TWO of them. So it
+    #arrives at the spawn origin rather than in the offset pile below
+    #TWO OPERATORS SHARE the CURVE. Position Along Path Sequential SETS the
+    #spot once at birth; Movement Maintain Position Along Path HOLDS the
+    #particle there for its whole life. In this build both read the live
+    #control point empties every evaluation, so the initializer already
+    #behaves like "maintain" whenever the empties move - one group serves
+    #both, they only differ in which sockets feed it
     path_pos = None
-    #  🔴 CHOSEN FROM THE FILE'S STACK, NOT FROM THE PANEL COUNT - every
-    #  catalogue operator gets a panel whether the file uses it or not, so
-    #  counting panels always found "both" and bound the path switch to the
-    #  Sequential toggle, which defaults OFF: an authored Maintain drove
-    #  nothing and the beam collapsed onto CP0. When the file carries both,
-    #  Maintain wins - it is the per-frame holder, so it has the last word.
+    # 🔴 CHOSEN FROM THE FILE'S STACK, not FROM THE PANEL COUNT - every
+    # catalogue operator gets a panel whether the file uses it or not, so
+    # counting panels always found "both" and bound the path switch to the
+    # Sequential toggle, which defaults OFF: an authored Maintain drove
+    # nothing and the beam collapsed onto CP0. When the file carries both,
+    # Maintain wins - it is the per-frame holder, so it has the last word
     _in_stack = [o for o in ("Movement Maintain Position Along Path",
                              "Position Along Path Sequential",
                              "Position Along Path Random")
@@ -863,12 +863,12 @@ effect slides the other way and stays pinned to the world origin.
                   f"panels appear and only the first one places anything")
 
     # ── CHILDREN  ·  Position From Parent Particles ──────────────────────
-    #  This is the operator that turns a system into a CHILD: it replaces the
-    #  control point the particle would have been born on with one of the
-    #  PARENT'S living particles. Everything else - the sphere offset, the
-    #  velocity initializers, the whole operator stack - is unchanged and
-    #  simply happens around that new origin, which is exactly how SFM stacks
-    #  a child's own initializers on top of where it was placed.
+    # This is the operator that turns a system into a CHILD: it replaces the
+    # control point the particle would have been born on with one of the
+    # PARENT'S living particles. Everything else - the sphere offset, the
+    # velocity initializers, the whole operator stack - is unchanged and
+    # simply happens around that new origin, which is exactly how SFM stacks
+    # a child's own initializers on top of where it was placed.
     parent_pos = parent_vel = child_on = None
     child_nodes = []
     op_child = "Position From Parent Particles"
@@ -876,9 +876,9 @@ effect slides the other way and stays pinned to the world origin.
         pinfo = _nd(ng, "GeometryNodeObjectInfo", (-1700, -1660),
                     "the parent system", role="EMITTER",
                     transform_space="RELATIVE")
-        # RELATIVE, so the parent's particles arrive measured in THIS host's
+        # RELATIVE, so the parent's particles arrive measured in this host's
         # frame - the same frame our own control points are read in. Read in
-        # world space they would be out by the host's transform.
+        # world space they would be out by the host's transform
         _lk(ng, gi, g(PARENT_OBJ), pinfo, 0)
         pf = _nd(ng, "GeometryNodeGroup", (-1440, -1660), op_child,
                  role="EMITTER")
@@ -964,15 +964,15 @@ in brackets, so importing a real effect is a lookup rather than a translation.
     vel_parts = [(n, 1) for n in sphere_made]         # each sphere's Velocity
 
     # INHERITED VELOCITY joins the same ADD chain as every other velocity
-    # initializer, because that is what it is.
+    # initializer, because that is what it is
     #
-    # 🔴 WITH THE SIMULATION EMITTER IT IS READ BACK FROM AN ATTRIBUTE, not
+    # 🔴 WITH the SIMULATION EMITTER IT IS READ BACK FROM AN ATTRIBUTE, not
     # sampled live. The parent particle a child was born on will eventually
     # die, and the index then lands on somebody else - so sampling every frame
     # would rewrite a child's launch velocity in mid-flight, and its whole
     # closed-form trajectory with it. It is captured once, at birth, exactly
     # like lock_cp_birth. A missing attribute reads as zero, so nothing needs
-    # initialising.
+    # initialising
     #
     # The stateless ring has no memory to capture it into, so there it is
     # sampled live - the same known limitation that makes that path follow a
@@ -1009,7 +1009,7 @@ in brackets, so importing a real effect is a lookup rather than a translation.
 
     # INITIALIZER - Velocity Noise. Sampled at the SPAWN position and SPAWN
     # time, so it is fixed at birth and joins this chain like any other
-    # velocity initializer - no simulation state, no integration.
+    # velocity initializer - no simulation state, no integration
     noise_made = []
     for inst in range(1, n_of("Velocity Noise") + 1):
         vn = _nd(ng, "GeometryNodeGroup", (-1200 + (inst - 1) * 240, -1300),
@@ -1040,10 +1040,10 @@ in brackets, so importing a real effect is a lookup rather than a translation.
         _lk(ng, node, out_idx, a, 1)
         vel_total = (a, 0)
 
-    # ── FORCE GENERATOR - random force
-    # A constant per-particle acceleration
-    # is exactly what gravity is, so the forces are summed onto the gravity
-    # vector and inherit the drag treatment for nothing.
+    #── FORCE GENERATOR - random force
+    #A constant per-particle acceleration
+    #is exactly what gravity is, so the forces are summed onto the gravity
+    #vector and inherit the drag treatment for nothing
     grav = (gi, gs("Movement Basic", "Gravity"))
     force_nodes = []
     for inst in range(1, n_of("random force") + 1):
@@ -1085,7 +1085,7 @@ in brackets, so importing a real effect is a lookup rather than a translation.
     _lk(ng, life, 0, alive, 1)
 
     # =====================================================================
-    #  THE SIMULATION ZONE  -  who exists, and where they were born
+    # THE SIMULATION ZONE  -  who exists, and where they were born
     # =====================================================================
     if sim:
         sim_in = _nd(ng, "GeometryNodeSimulationInput", (-1820, -1700),
@@ -1111,40 +1111,40 @@ in brackets, so importing a real effect is a lookup rather than a translation.
         SI_CARRY = _si(sim_in, "Emission Carry", out=True)
         SI_NEXT = _si(sim_in, "Next ID", out=True)
 
-        #  DELTA TIME RIDES THE SAME TIMELINE AS THE CLOCK. Everything that
-        #  integrates per frame - the emission carry, bursts, birth-time
-        #  backdating, the position-dependent forces - must see EFFECT
-        #  seconds, or Time Scale would slow the ages while the emitter and
-        #  forces kept running at full speed.
+        # DELTA TIME RIDES the same TIMELINE AS the CLOCK. Everything that
+        # integrates per frame - the emission carry, bursts, birth-time
+        # backdating, the position-dependent forces - must see EFFECT
+        # seconds, or Time Scale would slow the ages while the emitter and
+        # forces kept running at full speed
         dt_eff = _nd(ng, "ShaderNodeMath", (-1780, -2140),
                      "dt x time scale", role="TIME", operation="MULTIPLY")
         _lk(ng, sim_in, SI_DT, dt_eff, 0)
         _lk(ng, gi, g("Time Scale"), dt_eff, 1)
         DT = (dt_eff, 0)
 
-        # how many are already alive - the cap needs to know
+        #how many are already alive - the cap needs to know
         alive_n = _nd(ng, "GeometryNodeAttributeDomainSize", (-1600, -1900),
                       "how many exist right now", role="EMITTER",
                       component="POINTCLOUD")
         _lk(ng, sim_in, SI_GEO, alive_n, 0)
 
         # ── EMIT_CONTINUOUSLY, ONE INSTANCE PER PANEL ────────────────────
-        #  🔴 EVERY INSTANCE EMITS, not just the first. A .pcf may carry two
-        #  or three emit_continuously operators (19 TF2 systems do) - each
-        #  with its own start time, duration, rate and envelope. N emitters
-        #  feeding one carry integrator is mathematically the SAME as one
-        #  emitter whose rate is the sum of the per-instance gated rates:
+        # 🔴 EVERY INSTANCE EMITS, not just the first. A .pcf may carry two
+        # or three emit_continuously operators (19 TF2 systems do) - each
+        # with its own start time, duration, rate and envelope. N emitters
+        # feeding one carry integrator is mathematically the SAME as one
+        # emitter whose rate is the sum of the per-instance gated rates:
         #
-        #      carry += ( Σ rate_i x started_i x within_i x envelope_i ) x dt
+        # carry += ( Σ rate_i x started_i x within_i x envelope_i ) x dt
         #
-        #  so each instance gates its own rate and the sum drives the one
-        #  emit_sim group. Enable / Start Time / Envelope on the group stay at
-        #  their pass-through defaults - all the gating already happened.
+        # so each instance gates its own rate and the sum drives the one
+        # emit_sim group. Enable / Start Time / Envelope on the group stay at
+        # their pass-through defaults - all the gating already happened
         #
-        #  EMISSION DURATION: 0 means FOREVER, and so does anything negative
-        #  (real files use -1). Only a POSITIVE duration is a deadline. This
-        #  socket existed for a long time and drove nothing, which read as
-        #  "the field is broken".
+        # EMISSION DURATION: 0 means FOREVER, and so does anything negative
+        # (real files use -1). Only a POSITIVE duration is a deadline. This
+        # socket existed for a long time and drove nothing, which read as
+        # "the field is broken"
         rate_total = None
         for e_inst in range(1, n_of("emit_continuously") + 1):
             ey = -1440 - (e_inst - 1) * 460
@@ -1154,12 +1154,12 @@ in brackets, so importing a real effect is a lookup rather than a translation.
                           operation="SUBTRACT")
             _lk(ng, clock, 0, since_i, 0)
             _lk(ng, gi, gs(e_op, "Emission Start Time", e_inst), since_i, 1)
-            #  ⚠️ THE ENVELOPE RUNS ON SYSTEM TIME, not time-since-this-
-            #  emitter. SFM's fade times are "raw seconds since the particle
-            #  SYSTEM started" - a jet flame's third emitter authors start
-            #  0.25 AND fadein 0.25, meaning the same instant. Feeding it
-            #  since-start shifted every later instance's envelope past its
-            #  own emission window and it emitted nothing at all.
+            # ⚠️ the ENVELOPE RUNS ON SYSTEM TIME, not time-since-this-
+            # emitter. SFM's fade times are "raw secs since the particle
+            # SYSTEM started" - a jet flame's third emitter authors start
+            # 0.25 AND fadein 0.25, meaning the same instant. Feeding it
+            # since-start shifted every later instance's envelope past its
+            # own emission window and it emitted nothing at all
             env_i = _nd(ng, "GeometryNodeGroup", (-1600, ey),
                         f"envelope · {spec.panel_name(e_op, e_inst)}",
                         role="EMITTER")
@@ -1221,8 +1221,8 @@ in brackets, so importing a real effect is a lookup rather than a translation.
         emit = _nd(ng, "GeometryNodeGroup", (-1180, -1700),
                    "emit_continuously", role="EMITTER")
         emit.node_tree = groups["emit_sim"]
-        # Enable / Start Time / Envelope stay at their defaults (True / 0 /
-        # 1): the per-instance gating above already decided who emits when.
+        #enable / Start Time / Envelope stay at their defaults (True / 0 /
+        #1): the per-instance gating above already decided who emits when
         _lk(ng, clock, 0, emit, 1)
         _lp(ng, DT, emit, 2)
         if rate_total is not None:
@@ -1231,9 +1231,9 @@ in brackets, so importing a real effect is a lookup rather than a translation.
         _lk(ng, alive_n, 0, emit, 7)
         _lk(ng, gi, g(MAXP), emit, 8)
 
-        # EMITTER - emit_instantaneously. Its burst is added BEFORE the cap,
+        # EMITTER - emit_instantaneously. Its burst is added before the cap,
         # so a 2000-particle burst under a 200 cap gives 200 and the rest are
-        # never born rather than queued for later.
+        # never born rather than queued for later
         burst_total, burst_nodes = None, []
         for inst in range(1, n_of("emit_instantaneously") + 1):
             b = _nd(ng, "GeometryNodeGroup", (-1400, -1900 - inst * 200),
@@ -1248,8 +1248,8 @@ in brackets, so importing a real effect is a lookup rather than a translation.
                 b, _in(b, "Start Time"))
             _lk(ng, gi, gs(op, "Num To Emit Min", inst), b, _in(b, "Count Min"))
             _lk(ng, gi, gs(op, "Num To Emit", inst), b, _in(b, "Count Max"))
-            # Two bursts in one system must not roll the same size, so each
-            # instance takes its own offset into the random stream.
+            #two bursts in one system must not roll the same size, so each
+            #instance takes its own offset into the random stream.
             _lp(ng, seed_for(inst), b, _in(b, "Seed"))
             burst_nodes.append(b)
             if burst_total is None:
@@ -1265,7 +1265,7 @@ in brackets, so importing a real effect is a lookup rather than a translation.
             _lp(ng, burst_total, emit, _in(emit, "Extra This Frame"))
         emitter_nodes += burst_nodes
 
-        # ── the particles born on this frame ─────────────────────────────
+        #── the particles born on this frame ─────────────────────────────
         born = _nd(ng, "GeometryNodePoints", (-960, -1700),
                    "born this frame", role="EMITTER")
         _lk(ng, emit, 0, born, 0)
@@ -1273,7 +1273,7 @@ in brackets, so importing a real effect is a lookup rather than a translation.
                        "which one of them", role="EMITTER")
 
         # particle_id: a serial number that never repeats, so every particle
-        # rolls its own random values and no two ever share them.
+        # rolls its own random values and no two ever share them
         pid_new = _nd(ng, "ShaderNodeMath", (-760, -1900),
                       "next id + index", role="EMITTER", operation="ADD")
         _lk(ng, sim_in, SI_NEXT, pid_new, 0)
@@ -1293,11 +1293,11 @@ in brackets, so importing a real effect is a lookup rather than a translation.
         _lk(ng, sim_in, SI_NEXT, next_out, 0)
         _lk(ng, emit, 0, next_out, 1)
 
-        # BIRTH TIME, SPREAD ACROSS THE FRAME. All the particles born on one
+        # BIRTH TIME, SPREAD ACROSS the FRAME. All the particles born on one
         # frame would otherwise share an age exactly, and a stream emitted at
         # 200/s would come out as visible clumps one frame apart instead of a
         # continuous jet. The last one born is stamped with the current time,
-        # the rest are backdated evenly across the frame just gone.
+        # the rest are backdated evenly across the frame just gone
         n_safe = _nd(ng, "ShaderNodeMath", (-960, -2260), "count, never zero",
                      role="EMITTER", operation="MAXIMUM")
         _lk(ng, emit, 0, n_safe, 0)
@@ -1330,10 +1330,10 @@ in brackets, so importing a real effect is a lookup rather than a translation.
         _lk(ng, store_pid, 0, store_birth, 0)
         _lk(ng, birth_t, 0, store_birth, 3)
 
-        # WHERE THE LOCK'S CONTROL POINT WAS AT BIRTH. This is the whole fix
+        # WHERE the LOCK'S CONTROL POINT WAS AT BIRTH. This is the whole fix
         # for "particles follow CP0 even with the lock switched off": you
         # cannot ask a geometry node where an empty USED to be, so the answer
-        # is written down on the frame it was still true.
+        # is written down on the frame it was still true
         store_lockcp = _nd(ng, "GeometryNodeStoreNamedAttribute",
                            (60, -1700), "lock_cp_birth  (POINT)",
                            role="EMITTER", data_type="FLOAT_VECTOR",
@@ -1342,9 +1342,9 @@ in brackets, so importing a real effect is a lookup rather than a translation.
         _lk(ng, store_birth, 0, store_lockcp, 0)
         _lp(ng, lock_cp, store_lockcp, 3)
 
-        # WHAT THE PARENT PARTICLE WAS DOING WHEN THIS CHILD WAS BORN, written
+        # what THE PARENT PARTICLE WAS DOING WHEN this CHILD WAS BORN, written
         # down for the same reason as lock_cp_birth: the parent will die, and
-        # then there is nobody left to ask.
+        # then there is nobody left to ask
         born_chain = store_lockcp
         if child_on is not None:
             store_inh = _nd(ng, "GeometryNodeStoreNamedAttribute",
@@ -1377,23 +1377,23 @@ in brackets, so importing a real effect is a lookup rather than a translation.
         _lk(ng, place, 0, join, 0)
 
         # =================================================================
-        #  POSITION-DEPENDENT FORCES  -  the one place we integrate
+        #POSITION-DEPENDENT FORCES  -  the one place we integrate
         # =================================================================
         #
-        #  Everything else here is a closed form: a pure function of age,
-        #  exact at any frame rate. A force that depends on WHERE THE PARTICLE
-        #  IS cannot be - the force moves the particle, which changes the
-        #  force. So Pull towards control point and twist around axis are
-        #  integrated per frame, and ONLY they are.
+        #Everything else here is a closed form: a pure function of age,
+        #exact at any frame rate. A force that depends on where THE PARTICLE
+        #IS cannot be - the force moves the particle, which changes the
+        #force. So Pull towards control point and twist around axis are
+        #integrated per frame, and ONLY they are.
         #
-        #  Two attributes carry the result, and they are a CORRECTION on top
-        #  of the closed form rather than a replacement for it:
-        #      force_velocity   velocity built up by these forces
-        #      force_offset     how far that has moved the particle
+        #Two attributes carry the result, and they are a CORRECTION on top
+        #of the closed form rather than a replacement for it:
+        #force_velocity   velocity built up by these forces
+        #force_offset     how far that has moved the particle
         #
-        #  So gravity, drag and the launch velocity stay exact, and only this
-        #  correction is frame-rate dependent. A missing attribute reads as
-        #  zero, so newly born points need no initialisation.
+        #So gravity, drag and the launch velocity stay exact, and only this
+        #correction is frame-rate dependent. A missing attribute reads as
+        #zero, so newly born points need no initialisation
         fvel_read = _nd(ng, "GeometryNodeInputNamedAttribute", (300, -2100),
                         "force_velocity [read]", role="OPERATOR",
                         data_type="FLOAT_VECTOR")
@@ -1451,8 +1451,8 @@ in brackets, so importing a real effect is a lookup rather than a translation.
             tw.node_tree = groups["twist_axis"]
             _lk(ng, gi, gon(op, inst), tw, _in(tw, "Enable"))
             _lk(ng, pos_now, 0, tw, _in(tw, "Position"))
-            # No control_point_number field exists on this operator in any
-            # real file, so the axis passes through control point 0.
+            # no control_point_number field exists on this operator in any
+            # real file, so the axis passes through control point 0
             _lk(ng, cps[0], 1, tw, _in(tw, "Control Point"))
             _lk(ng, gi, gs(op, "Axis", inst), tw, _in(tw, "Axis"))
             _lk(ng, gi, gs(op, "Amount", inst), tw, _in(tw, "Amount"))
@@ -1471,7 +1471,7 @@ in brackets, so importing a real effect is a lookup rather than a translation.
                 force_nodes2.append(a)
 
         # v += a dt, then the SAME drag law as Movement Basic: a fraction kept
-        # per 30 Hz tick, so k = 30 x drag.
+        # per 30 Hz tick, so k = 30 x drag
         dv = _nd(ng, "ShaderNodeVectorMath", (1400, -2100), "a x dt",
                  role="OPERATOR", operation="SCALE")
         if accel is not None:
@@ -1543,9 +1543,9 @@ in brackets, so importing a real effect is a lookup rather than a translation.
 
         stream = (sim_out, _si(sim_out, "Geometry", out=True))
 
-        # OUTSIDE the zone the points are still sitting exactly where they
-        # were born, because nothing in the zone ever moved them. So the
-        # birth position is simply Position - no attribute needed for it.
+        #OUTSIDE the zone the points are still sitting exactly where they
+        #were born, bc nothing in the zone ever moved them. So the
+        #birth position is simply Position - no attribute needed for it.
         base = _nd(ng, "GeometryNodeInputPosition", (760, -900),
                    "where it was born", role="OPERATOR")
         foff_out = _nd(ng, "GeometryNodeInputNamedAttribute", (760, -1060),
@@ -1653,7 +1653,7 @@ moving control point.
 """, emitter_nodes)
 
     # =====================================================================
-    #  POSITION  -  base + travel, optionally riding the lock control point
+    # POSITION  -  base + travel, optionally riding the lock control point
     # =====================================================================
     offset = _nd(ng, "ShaderNodeVectorMath", (1160, -700), "base + travel",
                  role="OPERATOR", operation="ADD")
@@ -1679,8 +1679,8 @@ moving control point.
     if sim:
         final_pos = lock
     else:
-        # The stateless path has no memory of where the CP was, so "unlocked"
-        # has to mean "relative to where it is now".
+        #the stateless path has no memory of where the CP was, so "unlocked"
+        #has to mean "relative to where it's now"
         unlocked = _nd(ng, "ShaderNodeVectorMath", (1400, -940),
                        "spawn origin + offset", role="OPERATOR",
                        operation="ADD")
@@ -1725,11 +1725,11 @@ particle at the same point in its own life rather than all at once.
 
     # ── the sprite sheet  (ANIMATED SPRITES ONLY) ────────────────────────
     #
-    #  A rope has no sheet: it is one continuous ribbon with a texture running
-    #  along it, not a sequence of frames on a card. So the whole sequence
-    #  table and the animation-rate maths are built only for the sprite
-    #  renderer, and `tile` stays None - the sprite_frame attribute is simply
-    #  not written.
+    # A rope has no sheet: it's one continuous ribbon with a texture running
+    # along it, not a sequence of frames on a card. So the whole sequence
+    # table and the animation-rate maths are built only for the sprite
+    # renderer, and `tile` stays None - the sprite_frame attribute is simply
+    # not written
     tile = tile_next = frame_frac = None
     if not rope:
         # ── sequence table ───────────────────────────────────────────────────
@@ -1766,7 +1766,7 @@ particle at the same point in its own life rather than all at once.
         seq_start, seq_len, seq_loop = prev
 
         # ── animation rate ───────────────────────────────────────────────────
-        # Only built where something reads it - see the note on `played`.
+        # Only built where something reads it - see the note on `played`
         frac_life = fit = None
         if not trail:
             frac_life = _nd(ng, "ShaderNodeMath", (760, 520), "age / lifetime",
@@ -1788,7 +1788,7 @@ particle at the same point in its own life rather than all at once.
         _lk(ng, seq_len, 0, byrate2, 1)
         # animation_fit_lifetime is an ANIMATED SPRITES field. render_sprite_trail
         # has no such thing in any of its 484 uses - a trail plays at its rate
-        # or not at all - so the switch is only built where the field exists.
+        # or not at all - so the switch is only built where the field exists
         if trail:
             played = byrate2
         else:
@@ -1828,14 +1828,14 @@ particle at the same point in its own life rather than all at once.
         _lk(ng, mode, 0, tile, 0)
         _lk(ng, seq_start, 0, tile, 1)
 
-        #  ── FRAME BLENDING, the spritecard way ──────────────────────────
-        #  SFM crossfades each frame into the NEXT one, which is why an
-        #  8 fps smoke sheet looks liquid there and stroboscopic on a plain
-        #  frame-hold. The fraction between frames is already sitting in
-        #  `played`; the next frame runs through the SAME loop/hold rule,
-        #  so a held last frame blends into itself and simply holds. The
-        #  material samples both tiles and mixes - its "Blend Frames" value
-        #  node is the on/off switch.
+        #── FRAME BLENDING, the spritecard way ──────────────────────────
+        #SFM crossfades each frame into the NEXT one, which is why an
+        #8 fps smoke sheet looks liquid there and stroboscopic on a plain
+        #frame-hold. The fraction between frames is already sitting in
+        #`played`; the next frame runs through the same loop/hold rule,
+        #so a held last frame blends into itself and simply holds. The
+        #material samples both tiles and mixes - its "Blend Frames" value
+        #node is the on/off switch
         frame_frac = _nd(ng, "ShaderNodeMath", (1500, 20),
                          "how far into this frame", role="SEQUENCE",
                          operation="SUBTRACT")
@@ -1891,7 +1891,7 @@ particle at the same point in its own life rather than all at once.
     _lk(ng, gi, g("Scale"), rad, 1)
 
     # OPERATOR - Radius Scale. Instances CHAIN: each multiplies the radius it
-    # was handed, so two of them read as grow-then-shrink.
+    # was handed, so two of them read as grow-then-shrink
     rad_chain, rad_nodes = rad, []
     for inst in range(1, n_of("Radius Scale") + 1):
         r = _nd(ng, "GeometryNodeGroup", (980 + (inst - 1) * 240, -120),
@@ -1900,7 +1900,7 @@ particle at the same point in its own life rather than all at once.
         _lk(ng, gi, gon("Radius Scale", inst), r, _in(r, "Enable"))
         _lk(ng, rad_chain, 0, r, _in(r, "Radius In"))
         _lp(ng, AGE, r, _in(r, "Age"))
-        _lk(ng, life, 0, r, _in(r, "Lifetime"))            # 0.24.1: life fractions
+        _lk(ng, life, 0, r, _in(r, "Lifetime"))            #0.24.1: life fractions
         for a, b in (("Start Scale", "Start Scale"), ("End Scale", "End Scale"),
                      ("Start Time", "Start Time"), ("End Time", "End Time"),
                      ("Ease In And Out", "Ease"), ("Scale Bias", "Bias")):
@@ -1911,7 +1911,7 @@ particle at the same point in its own life rather than all at once.
         rad_chain = r
         rad_nodes.append(r)
 
-    # OPERATOR - Rotation Spin Roll, on top of the roll chosen at birth.
+    # OPERATOR - Rotation Spin Roll, on top of the roll chosen at birth
     roll_chain, spin_nodes = roll, []
     for inst in range(1, n_of("Rotation Spin Roll") + 1):
         sp = _nd(ng, "GeometryNodeGroup", (980 + (inst - 1) * 240, -520),
@@ -1931,8 +1931,8 @@ particle at the same point in its own life rather than all at once.
         roll_chain = sp
         spin_nodes.append(sp)
 
-    # OPERATOR - Rotation Yaw Flip Random. On a camera-facing card yaw is a
-    # MIRROR, so this comes out as a +1 / -1 multiplier on the card's X scale.
+    #OPERATOR - Rotation Yaw Flip Random. On a camera-facing card yaw is a
+    #MIRROR, so this comes out as a +1 / -1 multiplier on the card's X scale
     flip = _nd(ng, "GeometryNodeGroup", (760, -900),
                "Rotation Yaw Flip Random", role="OPERATOR")
     flip.node_tree = groups["yaw_flip"]
@@ -1942,10 +1942,10 @@ particle at the same point in its own life rather than all at once.
     _lp(ng, PID, flip, _in(flip, "ID"))
     _lk(ng, gi, g("Seed"), flip, _in(flip, "Seed"))
 
-    #  THE TWO RANDOM FADES, ONE GROUP PER INSTANCE. They are CHAIN
-    #  operators, so a second copy simply takes the first one's output as its
-    #  input - the same law Alpha Fade and Decay follows below. Each instance
-    #  reads its own #N sockets and salts its own random stream.
+    #the TWO RANDOM FADES, one GROUP PER INSTANCE. They are CHAIN
+    #operators, so a second copy simply takes the first one's output as its
+    #input - the same law Alpha Fade and Decay follows below. Each instance
+    #reads its own #N sockets and salts its own random stream
     fade_chain, fade_nodes = alpha, []
     for inst in range(1, n_of("Alpha Fade In Random") + 1):
         op = "Alpha Fade In Random"
@@ -1985,10 +1985,10 @@ particle at the same point in its own life rather than all at once.
         fade_chain = fo
         fade_nodes.append(fo)
 
-    #  THE SIMPLE FADES: the Random fades with the roll taken out. Same
-    #  groups, min = max = the one authored fraction, Proportional pinned on.
-    #  4168 / 3021 uses in this library - the single most-used alpha
-    #  operators there are.
+    # THE SIMPLE FADES: the Random fades with the roll taken out. Same
+    # groups, min = max = the one authored fraction, Proportional pinned on
+    # 4168 / 3021 uses in this library - the single most-used alpha
+    # operators there are
     for op, grp, tsock in (("Alpha Fade In Simple", "fade_in",
                             "Proportional Fade In Time"),
                            ("Alpha Fade Out Simple", "fade_out",
@@ -2011,8 +2011,8 @@ particle at the same point in its own life rather than all at once.
             fade_chain = fs
             fade_nodes.append(fs)
 
-    # OPERATOR - Alpha Fade and Decay. Chains onto the random fades: a
-    # system may carry all three, and 2001 systems carry this one.
+    #OPERATOR - Alpha Fade and Decay. Chains onto the random fades: a
+    #system may carry all three, and 2001 systems carry this one
     alpha_chain, decay_nodes = fade_chain, []
     for inst in range(1, n_of("Alpha Fade and Decay") + 1):
         op = "Alpha Fade and Decay"
@@ -2026,7 +2026,7 @@ particle at the same point in its own life rather than all at once.
         # ⚠️ CATALOGUE NAME vs GROUP INPUT NAME. The catalogue calls the fade
         # windows "Fade In Start" etc. ON PURPOSE - "Start Fade In" is the
         # ENVELOPE's name, and a shadowed display resolved to the envelope's
-        # zero sockets, which clamped every particle to alpha 0.
+        # zero sockets, which clamped every particle to alpha 0
         for nm, sock in (("Start Alpha", "Start Alpha"),
                          ("End Alpha", "End Alpha"),
                          ("Fade In Start", "Start Fade In"),
@@ -2039,7 +2039,7 @@ particle at the same point in its own life rather than all at once.
         alpha_chain = d
         decay_nodes.append(d)
 
-    # OPERATOR - Color Fade, on top of whatever Color Random rolled.
+    # OPERATOR - Color Fade, on top of whatever Color Random rolled
     colour_chain, cfade_nodes = colour, []
     for inst in range(1, n_of("Color Fade") + 1):
         op = "Color Fade"
@@ -2049,7 +2049,7 @@ particle at the same point in its own life rather than all at once.
         _lk(ng, gi, gon(op, inst), c, _in(c, "Enable"))
         _lk(ng, colour_chain, 0, c, _in(c, "Color In"))
         _lp(ng, AGE, c, _in(c, "Age"))
-        _lk(ng, life, 0, c, _in(c, "Lifetime"))            # 0.24.1: life fractions
+        _lk(ng, life, 0, c, _in(c, "Lifetime"))            #0.24.1: life fractions
         _lk(ng, gi, gs(op, "Fade To", inst), c, _in(c, "Fade To"))
         _lk(ng, gi, gs(op, "Fade Start Time", inst), c, _in(c, "Start Time"))
         _lk(ng, gi, gs(op, "Fade End Time", inst), c, _in(c, "End Time"))
@@ -2076,11 +2076,11 @@ word, different units - the corpus ranges are what settle it, not the names.
          + decay_nodes + cfade_nodes)
 
     # ── OPERATOR · Remap Distance to Control Point to Scalar ─────────────
-    #  The distance-driven taper, LAST in both value chains because it reads
-    #  the particle's FINAL evaluated position - the same closed form the
-    #  renderer places the card with. Field 3 rewrites radius, field 7
-    #  rewrites alpha; chained instances mean the last writer to a field
-    #  wins while different fields coexist.
+    # The distance-driven taper, last in both value chains bc it reads
+    # the particle's FINAL evaluated position - the same closed form the
+    # renderer places the card with. Field 3 rewrites radius, field 7
+    # rewrites alpha; chained instances mean the last writer to a field
+    # wins while different fields coexist.
     rad_src, alpha_src = (rad_chain, 0), (alpha_chain, 0)
     op_rm = "Remap Distance to Control Point to Scalar"
     remap_nodes = []
@@ -2115,16 +2115,16 @@ final evaluated position, so it stays exact at any frame rate. The maths
 and the field table live inside the group.
 """, remap_nodes)
 
-    # THE TRAIL POINTS WHERE THE PARTICLE ACTUALLY GOES. particle_velocity
+    # the TRAIL POINTS WHERE the PARTICLE ACTUALLY GOES. particle_velocity
     # used to be Movement Basic's closed form alone (launch + gravity + drag),
     # which for a spark born with Velocity Random +-75 on every axis is a
     # FROZEN RANDOM direction - and the sparks are then FLOWN by Pull-towards-
     # CP forces, so the trail stretched along its birth roll while the
     # particle travelled somewhere else: streaks moving sideways. The forces
     # already accumulate per tick into force_velocity, so adding it makes the
-    # stored velocity the ACTUAL one (direction AND length: a trail is
+    # stored velocity the ACTUAL one (direction and length: a trail is
     # speed x seconds). On a build with no forces the attribute is missing and
-    # reads zero, so nothing changes there.
+    # reads zero, so nothing changes there
     fvel_trail = _nd(ng, "GeometryNodeInputNamedAttribute", (2020, -560),
                      "force_velocity [for the trail]", role="OPERATOR",
                      data_type="FLOAT_VECTOR")
@@ -2139,7 +2139,7 @@ and the field table live inside the group.
             ("sprite_frame", "FLOAT", tile, 0),
             # the two extras that make frame BLENDING possible: which tile
             # comes next (same loop/hold law) and how far between them the
-            # particle is right now, 0..1. The material mixes by them.
+            # particle is right now, 0..1. The material mixes by them
             ("sprite_frame_next", "FLOAT", tile_next, 0),
             ("sprite_frame_blend", "FLOAT", frame_frac, 0),
             ("sprite_alpha", "FLOAT", alpha_src[0], alpha_src[1]),
@@ -2147,26 +2147,26 @@ and the field table live inside the group.
             ("sprite_radius", "FLOAT", rad_src[0], rad_src[1]),
             ("sprite_roll", "FLOAT", roll_chain, 0),
             ("sprite_flip", "FLOAT", flip, 0),
-            # NOT for the shader. Every system advertises how fast its
+            # not for the shader. Every system advertises how fast its
             # particles are going so that a CHILD system can inherit it, and
             # render_sprite_trail stretches along it. Movement Basic's closed
-            # form PLUS the integrated force_velocity - the actual velocity.
+            # form PLUS the integrated force_velocity - the actual velocity
             # A point attribute survives Instance on Points, which is how a
-            # child reads it back off the INSTANCE domain.
+            # child reads it back off the INSTANCE domain
             ("particle_velocity", "FLOAT_VECTOR", vel_total, 0),
             # SECONDS of travel. render_sprite_trail reads it back and turns
-            # it into units by multiplying the particle's speed.
+            # it into units by multiplying the particle's speed
             ("trail_length", "FLOAT", trail_len, 0)]
 
     # ── NON-UNIFORM SHEETS: pick each frame's EXACT rectangle here ─────────
-    #  A sheet whose frames are different sizes has no cols x rows grid. The
-    #  VTF's own per-frame rects arrive as `rects` (already V-flipped and
-    #  half-texel inset); ONE Index Switch holds them all as items - a single
-    #  node whether the sheet has 14 frames or 122 - indexed by the same
-    #  global frame number the grid path uses. The chosen corner and size are
-    #  stored per particle and the material just reads them: the shader-side
-    #  compare ladder this replaces was ~5 nodes PER FRAME and unmatchable by
-    #  the hand layouts.
+    # A sheet whose frames are different sizes has no cols x rows grid. The
+    # VTF's own per-frame rects arrive as `rects` (already V-flipped and
+    # half-texel inset); one Index Switch holds them all as items - a single
+    # node whether the sheet has 14 frames or 122 - indexed by the same
+    # global frame number the grid path uses. The chosen corner and size are
+    # stored per particle and the material just reads them: the shader-side
+    # compare ladder this replaces was ~5 nodes PER FRAME and unmatchable by
+    # the hand layouts.
     if rects and tile is not None:
         def _rect_picker(tag, index_src, part, x):
             isw = _nd(ng, "GeometryNodeIndexSwitch", (x, -520),
@@ -2238,11 +2238,11 @@ index, so the same law is satisfied by construction.
 """, stores)
 
     # ── renderer ─────────────────────────────────────────────────────────
-    #  ORIENTATION CONTROL POINT -1 MEANS "NOT BOUND" - Source's own default.
-    #  Unbound, the orientation frame is the WORLD's: a type-2 card lies flat
-    #  on the ground however the empties are rotated. Only an index >= 0
-    #  reads that control point's rotation. (Mix with a boolean factor, not a
-    #  vector Switch - the vector Switch crashed 5.2's structure inference.)
+    # ORIENTATION CONTROL POINT -1 MEANS "NOT BOUND" - Source's own default.
+    # Unbound, the orientation frame is the WORLD's: a type-2 card lies flat
+    # on the ground however the empties are rotated. Only an index >= 0
+    # reads that control point's rotation. (Mix with a boolean factor, not a
+    # vector Switch - the vector Switch crashed 5.2's structure inference.)
     orient_euler = None
     orient_nodes = []
     if orient_rot is not None:
@@ -2295,9 +2295,9 @@ index, so the same law is satisfied by construction.
         _lk(ng, gi, gs("render_animated_sprites", "Orientation Type"), rend,
             _in(rend, "Orientation Type"))
         _lp(ng, orient_euler, rend, _in(rend, "Orientation CP Rotation"))
-    # radius and roll are NOT passed - the renderer reads them from the baked
-    # sprite_radius / sprite_roll attributes, because anything index-derived
-    # would be shuffled by a DeleteGeometry.
+    # radius and roll are not passed - the renderer reads them from the baked
+    # sprite_radius / sprite_roll attributes, bc anything index-derived
+    # would be shuffled by a DeleteGeometry
     _lk(ng, rend, 0, go, 0)
     note(ng, "RENDERER", "RENDERER", """
 One camera-facing card per surviving particle. Orientation Type 0/1/2 and why
@@ -2354,7 +2354,7 @@ importer can say so out loud.
         ce_eul = _nd(ng, "FunctionNodeRotationToEuler", (2300, -2900),
                      "end CP rotation as euler", role="CONSTRAINT")
         _lp(ng, c_erot, ce_eul, 0)
-        #  The envelope runs on SYSTEM time, same as every operator's.
+        # the envelope runs on SYSTEM time, same as every operator's
         env_c = _nd(ng, "GeometryNodeGroup", (2100, -2100),
                     f"envelope · {spec.panel_name(OPC)}", role="CONSTRAINT")
         env_c.node_tree = groups["envelope"]
@@ -2391,10 +2391,10 @@ importer can say so out loud.
         leash = leash_instance(spec.panel_name(OPC), (2340, -2200),
                                (final_pos, 0))
 
-        #  ── the SIMPLER SIBLING: Constrain distance to control point ─────
-        #  Chained AFTER the path leash, both here and per frame below -
-        #  the order Source runs its constraint list. One CP, one shell,
-        #  the centre offset in the CP's own frame.
+        # ── the SIMPLER SIBLING: Constrain distance to control point ─────
+        # Chained after the path leash, both here and per frame below -
+        # the order Source runs its constraint list. One CP, one shell,
+        # the centre offset in the CP's own frame
         OPD = "Constrain distance to control point"
         cp_leash_instance = None
         cp_nodes = []
@@ -2438,24 +2438,24 @@ importer can say so out loud.
                                           (2580, -2200), (leash, 0))
             cp_nodes.append(chain_out)
 
-        #  THE SPLICE: the constraint chain takes over Set Position's input.
-        #  Compare nodes BY NAME - wrappers make `is` lie.
+        #the SPLICE: the constraint chain takes over Set Position's input
+        #Compare nodes BY NAME - wrappers make `is` lie
         for l in list(ng.links):
             if l.to_node.name == setpos.name \
                     and l.to_socket.name == "Position":
                 ng.links.remove(l)
         _lk(ng, chain_out, 0, setpos, 2)
 
-        #  🔴 THE PER-FRAME PASS IS WHAT MAKES IT SFM-TRUE. Clamping only
-        #  the final position saturates: the accumulated force offset grows
-        #  without bound, so within moments every particle sits pinned AT
-        #  the envelope and the beam reads as a fat tube. Source clamps
-        #  during the SIMULATION STEP, and the clamped position is what the
-        #  next frame's forces push from - so the beam WANDERS inside the
-        #  leash. Same trick here: the stored force_offset is corrected so
-        #  the particle's whole position obeys the envelope every frame.
-        #  (Stateless builds have no memory to correct; the final-position
-        #  leash above is their whole story.)
+        # 🔴 THE PER-FRAME PASS is WHAT MAKES IT SFM-TRUE. Clamping only
+        # the final position saturates: the accumulated force offset grows
+        # w/o bound, so within moments every particle sits pinned AT
+        # the envelope and the beam reads as a fat tube. Source clamps
+        # during the SIMULATION STEP, and the clamped position is what the
+        # next frame's forces push from - so the beam WANDERS inside the
+        # leash. Same trick here: the stored force_offset is corrected so
+        # the particle's whole position obeys the envelope every frame
+        # (Stateless builds have no memory to correct; the final-position
+        # leash above is their whole story.)
         sim_splice = []
         if sim:
             total_sim = _nd(ng, "ShaderNodeVectorMath", (2600, -2200),
@@ -2483,16 +2483,16 @@ importer can say so out loud.
                     ng.links.remove(l)
             _lk(ng, off_corr, 0, store_foff, 3)
 
-            #  🔴 THE CLAMP MUST BLEED OFF VELOCITY TOO, or the beam freezes.
-            #  Source stores prev-position, so velocity IS pos - prev: when
-            #  the constraint moves a particle back, the outward velocity is
-            #  implicitly cancelled. Our stored force_velocity felt nothing,
-            #  so with drag 0.001 it grew without bound and every particle's
-            #  push direction froze solid - measured as a kink pattern that
-            #  crawled 0.2 HU in ten frames whatever the force model did.
-            #  Subtracting the clamped-away displacement as velocity (over a
-            #  dt floored at EPS: on the dt=0 opening frame the displacement
-            #  is zero anyway) keeps the walk alive inside the leash.
+            # 🔴 the CLAMP must BLEED OFF VELOCITY TOO, or the beam freezes
+            # Source stores prev-position, so velocity IS pos - prev: when
+            # the constraint moves a particle back, the outward velocity is
+            # implicitly cancelled. Our stored force_velocity felt nothing,
+            # so with drag 0.001 it grew w/o bound and every particle's
+            # push direction froze solid - measured as a kink pattern that
+            # crawled 0.2 HU in ten frames whatever the force model did
+            # Subtracting the clamped-away displacement as velocity (over a
+            # dt floored at EPS: on the dt=0 opening frame the displacement
+            # is zero anyway) keeps the walk alive inside the leash
             v_lost = _nd(ng, "ShaderNodeVectorMath", (3040, -2380),
                          "what the leash took", role="CONSTRAINT",
                          operation="SUBTRACT")
@@ -2526,12 +2526,12 @@ importer can say so out loud.
                           inv_dt, v_kick, v_fix]
 
     # =====================================================================
-    #  INITIALIZER  ·  Rotation Yaw Random  (the cos-squish)
+    # INITIALIZER  ·  Rotation Yaw Random  (the cos-squish)
     # =====================================================================
-    #  Multiplies the same sprite_flip channel the yaw FLIP mirror stores -
-    #  flip's -1 and this compression compose by multiplication. Spliced at
-    #  the end for the same name-stability reason as the leash; a rope has
-    #  no sprite_flip store and correctly gets nothing.
+    # Multiplies the same sprite_flip channel the yaw FLIP mirror stores -
+    # flip's -1 and this compression compose by multiplication. Spliced at
+    # the end for the same name-stability reason as the leash; a rope has
+    # no sprite_flip store and correctly gets nothing
     if groups.get("yaw_random") is not None:
         OPY = "Rotation Yaw Random"
         sf_store = next(
@@ -2562,18 +2562,18 @@ importer can say so out loud.
             _lk(ng, mulf, 0, sf_store, 3)
 
     # =====================================================================
-    #  FORCE  ·  random force, per tick (the crackle) - SIM BUILDS ONLY
+    # FORCE  ·  random force, per tick (the crackle) - SIM BUILDS only
     # =====================================================================
-    #  Source rolls random force ONCE PER 30 Hz TICK, shared by every
-    #  particle alive - each integrates the same force history over its own
-    #  life window, which is what kinks a beam COHERENTLY. The old reading
-    #  (a constant per particle, added to gravity) made a leashed beam
-    #  drift to one wall of its envelope and lie there straight. So on
-    #  simulation builds the constant is retired from the gravity path and
-    #  the shared per-tick force joins the integrated forces instead; the
-    #  stateless emitter has no memory to integrate with and keeps the old
-    #  reading. Spliced at the end for name stability, like everything
-    #  above.
+    # Source rolls random force once PER 30 Hz TICK, shared by every
+    # particle alive - each integrates the same force history over its own
+    # life window, which is what kinks a beam COHERENTLY. The old reading
+    # (a constant per particle, added to gravity) made a leashed beam
+    # drift to one wall of its envelope and lie there straight. So on
+    # simulation builds the constant is retired from the gravity path and
+    # the shared per-tick force joins the integrated forces instead; the
+    # stateless emitter has no memory to integrate with and keeps the old
+    # reading. Spliced at the end for name stability, like everything
+    # above
     if sim and groups.get("random_force_tick") is not None \
             and n_of("random force") > 0:
         gf = next((nd for nd in ng.nodes
@@ -2616,20 +2616,20 @@ importer can say so out loud.
         else:
             _lk(ng, tickf, 0, dv, 0)
 
-    #  PROXY VIEW reaches the renderer. All three renderers carry the switch
-    #  now - cards and trails swap in the tenth-size stand-in, the rope keeps
-    #  its ribbon and swaps the sheet shader for a flat colour. The guard
-    #  stays for any renderer built without one.
+    #PROXY VIEW reaches the renderer. All three renderers carry the switch
+    #now - cards and trails swap in the tenth-size stand-in, the rope keeps
+    #its ribbon and swaps the sheet shader for a flat colour. The guard
+    #stays for any renderer built w/o one
     try:
         _lk(ng, gi, g("Proxy View"), rend, _in(rend, "Proxy View"))
     except Exception:
         pass
 
-    #  🔴 THIS NOTE USED TO SIT INSIDE THE except ABOVE - an indentation
-    #  accident, so the leash frame only appeared on builds where the proxy
-    #  link FAILED (ropes), and every card build silently lost it. It is the
-    #  constraint section's closing note, so it runs whenever the constraint
-    #  groups were built, independent of any renderer wiring.
+    # 🔴 THIS NOTE USED TO SIT INSIDE the except ABOVE - an indentation
+    # accident, so the leash frame only appeared on builds where the proxy
+    # link FAILED (ropes), and every card build silently lost it. It is the
+    # constraint section's closing note, so it runs whenever the constraint
+    # groups were built, independent of any renderer wiring.
     if groups.get("constrain_path") is not None:
         fr_leash = note(ng, "CONSTRAINT  ·  the leash on the final position",
                         "CONSTRAINT", """

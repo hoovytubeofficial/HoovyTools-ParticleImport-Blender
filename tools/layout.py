@@ -1,110 +1,110 @@
 # =============================================================================
-#  tools/layout.py  -  make a node graph READABLE
+# tools/layout.py  -  make a node graph READABLE
 # =============================================================================
 #
-#  A graph nobody can read is a graph nobody can fix, and these graphs are
-#  meant to be learned from. Three separate problems, three separate passes -
-#  none of them touches what the graph DOES.
+# A graph nobody can read is a graph nobody can fix, and these graphs are
+# meant to be learned from. Three separate problems, three separate passes -
+# none of them touches what the graph does.
 #
-#  1. LOOSE NODES. A node wired to nothing is a leftover. It is not
-#     documentation, it is a question the reader has to answer before they can
-#     trust anything else on screen.
+# 1. LOOSE NODES. A node wired to nothing is a leftover. It is not
+# documentation, it's a question the reader has to answer before they can
+# trust anything else on screen
 #
-#  2. OVERLAPPING FRAMES. Two boxes on top of each other read as one broken
-#     box. Frames are moved apart WHOLE - a frame's children are stored
-#     relative to it, so moving the frame moves the section without disturbing
-#     a single hand-placed node inside it.
+# 2. OVERLAPPING FRAMES. Two boxes on top of each other read as one broken
+# box. Frames are moved apart whole - a frame's children are stored
+# relative to it, so moving the frame moves the section w/o disturbing
+# a single hand-placed node inside it
 #
-#  3. FRAME TEXT UNDER THE NODES. `NodeFrame.text` draws from the TOP of the
-#     frame downwards, and Blender reserves NO space for it - so with the
-#     frame shrink-wrapped around its children, every line lands behind a
-#     node. That is why the explanations were unreadable. The fix is to stop
-#     shrink-wrapping: give the frame an explicit size with a text band at the
-#     top, and push the children below it.
+# 3. FRAME TEXT UNDER THE NODES. `NodeFrame.text` draws from the TOP of the
+# frame downwards, and Blender reserves no space for it - so with the
+# frame shrink-wrapped around its children, every line lands behind a
+# node. That is why the explanations were unreadable. The fix is to stop
+# shrink-wrapping: give the frame an explicit size with a text band at the
+# top, and push the children below it.
 #
-#  🔴 A frame with `shrink = True` recomputes its own size from its children
-#  every draw, so ANY size set here is thrown away. Reserving headroom means
-#  turning shrink OFF - it is not an aesthetic flag, it is the whole mechanism.
+# 🔴 A frame with `shrink = True` recomputes its own size from its children
+# every draw, so ANY size set here is thrown away. Reserving headroom means
+# turning shrink OFF - it isn't an aesthetic flag, it is the whole mechanism
 #
-#  COLOUR IS INFORMATION, NOT DECORATION
+# colour is information, not decoration
 #  -------------------------------------
-#  The palette below is one hue per ROLE, at a shared saturation and value, so
-#  the sections read as a family rather than a paint chart. Hues are spaced
-#  around the wheel far enough to tell apart at a glance and kept dark enough
-#  to sit under white node text all day:
+# The palette below is one hue per ROLE, at a shared saturation and value, so
+# the sections read as a family rather than a paint chart. Hues are spaced
+# around the wheel far enough to tell apart at a glance and kept dark enough
+# to sit under white node text all day:
 #
-#      time 170  ·  emitter 40  ·  initializer 108  ·  operator 15
-#      sequence 292  ·  renderer 248  ·  children 65  ·  plumbing grey
-#  (the full table with saturations is _HUES below - THAT is the truth)
+# time 170  ·  emitter 40  ·  initializer 108  ·  operator 15
+# sequence 292  ·  renderer 248  ·  children 65  ·  plumbing grey
+# (the full table with saturations is _HUES below - THAT is the truth)
 #
-#  Warm hues (emitter, operator) are the things that CHANGE; cool hues (time,
-#  renderer, children) are the things that are READ. Green sits between them,
-#  for values decided once at birth. That is the whole system.
+# Warm hues (emitter, operator) are the things that CHANGE; cool hues (time,
+# renderer, children) are the things that are READ. Green sits between them,
+# for values decided once at birth. That is the whole system.
 # =============================================================================
 
 import colorsys
 
 
 # ── the palette ──────────────────────────────────────────────────────────────
-#  (hue in degrees, saturation, value) - one place, so a tweak moves the whole
-#  family together instead of drifting one node group at a time.
+# (hue in degrees, saturation, value) - one place, so a tweak moves the whole
+# family together instead of drifting one node group at a time.
 
-#  🔴 THE KEY IS THE SFM SECTION, and that is the whole point of the palette.
-#  A colour is only information if it means the same thing everywhere, so
-#  these are named after the sections in the modifier - CONTROL POINTS,
-#  RENDERER, EMITTER - not after some internal notion of what a node does.
-#  Before this, the CONTROL POINTS frame was painted with the "plumbing" grey
-#  and the sections did not line up with the panels at all, which is exactly
-#  why the palette read as random.
-#  🔴 EVERY SECTION IS A DIFFERENT COLOUR, and that used to be less true than
-#  it looked. CONTROL POINTS and TIME were BOTH hue 195, and EMITTER /
-#  OPERATOR / FORCE GENERATOR sat inside 30 degrees of each other - so half the
-#  graph was the same warm brown and the sections did not separate at a glance.
-#  The hues below are spread around the wheel with no two sections closer than
-#  25 degrees, which is the point at which they stop reading as one family.
+# 🔴 THE KEY IS THE SFM SECTION, and that's the whole point of the palette
+# A colour is only information if it means the same thing everywhere, so
+# these are named after the sections in the modifier - CONTROL POINTS,
+# RENDERER, EMITTER - not after some internal notion of what a node does
+# Before this, the CONTROL POINTS frame was painted with the "plumbing" grey
+# and the sections did not line up with the panels at all, which is exactly
+# why the palette read as random
+# 🔴 every SECTION IS A DIFFERENT COLOUR, and that used to be less true than
+# it looked. CONTROL POINTS and TIME were both hue 195, and EMITTER /
+# OPERATOR / FORCE GENERATOR sat inside 30 degrees of each other - so half the
+# graph was the same warm brown and the sections did not separate at a glance
+# The hues below are spread around the wheel with no two sections closer than
+# 25 degrees, which is the point at which they stop reading as one family
 #
-#  ⚠️ MEASURED, NOT ASSUMED - the first "respread" table still had OPERATOR 12
-#  against EMITTER 33, a 21 degree gap, and the +11 nudge on a REPEATED
-#  operator block then landed at 23: TEN degrees from the emitter, so the one
-#  frame whose colour had to say "second OPERATOR" said "EMITTER" instead.
-#  Every clockwise gap below is now >= 25, which also guarantees a +/-11
-#  nudged repeat stays nearer its OWN base (11) than any neighbour (>= 14).
+# ⚠️ MEASURED, NOT ASSUMED - the first "respread" table still had OPERATOR 12
+# against EMITTER 33, a 21 degree gap, and the +11 nudge on a REPEATED
+# operator block then landed at 23: TEN degrees from the emitter, so the one
+# frame whose colour had to say "second OPERATOR" said "EMITTER" instead
+# Every clockwise gap below is now >= 25, which also guarantees a +/-11
+# nudged repeat stays nearer its own base (11) than any neighbour (>= 14).
 _HUES = {
     # the frame of reference everything hangs off - cool, calm, structural
     "CONTROL POINTS":   (196, 0.36, 0.31),
     "SYSTEM PROPERTIES": (222, 0.22, 0.28),
     "TIME":             (170, 0.30, 0.30),
-    # WARM = it changes. birth, then per-frame change, then forces.
+    # WARM = it changes. birth, then per-frame change, then forces
     "EMITTER":          (40,  0.40, 0.33),
     "OPERATOR":         (15,  0.38, 0.32),
     "FORCE GENERATOR":  (350, 0.32, 0.31),
     "CONSTRAINT":       (320, 0.28, 0.29),
-    # GREEN = decided once, at birth, and never again.
+    #GREEN = decided once, at birth, and never again
     "INITIALIZER":      (108, 0.32, 0.29),
-    # COOL = it is read, not changed.
+    #COOL = it's read, not changed
     "RENDERER":         (248, 0.32, 0.33),
     "SEQUENCE":         (292, 0.30, 0.31),
     "CHILDREN":         (65,  0.34, 0.30),
     "OUTPUT":           (0,   0.00, 0.27),
 }
 
-# The sections that are not roles in their own right still have to land
-# somewhere sensible rather than falling through to grey.
+# the sections that are not roles in their own right still have to land
+# somewhere sensible rather than falling thru to grey.
 _ALIAS = {
     "FORCE": "FORCE GENERATOR",
     "CONTROL POINT": "CONTROL POINTS",
     "SYSTEM": "SYSTEM PROPERTIES",
 }
 
-# 🔴 NODES ARE SATURATED, FRAMES ARE NOT - and the node colour IS the icon
-# colour, by construction. The palette's original values (~0.3) were authored
-# as dim surfaces, and on the dark theme they read as "slightly tinted grey":
-# the recolour pass ran and nobody could see it. Now:
+#🔴 NODES are SATURATED, FRAMES are not - and the node colour IS the icon
+#colour, by construction. The palette's original values (~0.3) were authored
+#as dim surfaces, and on the dark theme they read as "slightly tinted grey":
+#the recolour pass ran and nobody could see it. Now:
 #
-#     NODES   icon_rgb() verbatim - the exact colours of the sidebar's
-#             sys_properties_*.png icons, bright and saturated
-#     FRAMES  same hue, saturation cut nearly in half, value pinned dark -
-#             a muted ground the vivid nodes sit ON, not compete with
+#NODES   icon_rgb() verbatim - the exact colours of the sidebar's
+#sys_properties_*.png icons, bright and saturated
+#FRAMES  same hue, saturation cut nearly in half, value pinned dark -
+#a muted ground the vivid nodes sit ON, not compete with
 FRAME_SAT_MUL = 0.55
 FRAME_VAL = 0.34
 
@@ -115,7 +115,7 @@ def rgb(role, frame=False):
     h, s, _v = _HUES.get(key, _HUES["OUTPUT"])
     if frame:
         return colorsys.hsv_to_rgb(h / 360.0, s * FRAME_SAT_MUL, FRAME_VAL)
-    return icon_rgb(key)          # nodes wear the icon colours, verbatim
+    return icon_rgb(key)          #nodes wear the icon colours, verbatim
 
 
 def role_colours(frame=False):
@@ -137,19 +137,19 @@ def icon_rgb(role):
 
 # ── the gradient ─────────────────────────────────────────────────────────────
 #
-#  🔴 A SECTION IS A GRADIENT, NOT A FLAT BLOCK. Fifty nodes painted one exact
-#  colour is a wall: you can see where the section starts and ends and nothing
-#  else. Ramping VALUE across the section - dark where the data comes in,
-#  bright where it leaves - makes the direction of flow visible from zoomed
-#  out, at no cost to the meaning, because the HUE still says which section it
-#  is. Colour by role stays exactly as it was; this only varies the brightness
-#  along the way.
+# 🔴 A SECTION is A GRADIENT, NOT A FLAT BLOCK. Fifty nodes painted one exact
+# colour is a wall: you can see where the section starts and ends and nothing
+# else. Ramping VALUE across the section - dark where the data comes in,
+# bright where it leaves - makes the direction of flow visible from zoomed
+# out, at no cost to the meaning, bc the HUE still says which section it
+# is. Colour by role stays exactly as it was; this only varies the brightness
+# along the way.
 #
-#  Kept deliberately narrow. A ramp wide enough to be pretty is wide enough to
-#  read as two different sections, which is the one thing the palette exists to
-#  prevent.
-#  Ramp bounds picked so the BRIGHT node base (0.86) never clips to white:
-#  0.72 x 0.86 = 0.62 on the input side, 1.08 x 0.86 = 0.93 at the output.
+# Kept deliberately narrow. A ramp wide enough to be pretty is wide enough to
+# read as two different sections, which is the one thing the palette exists to
+# prevent
+# Ramp bounds picked so the BRIGHT node base (0.86) never clips to white:
+# 0.72 x 0.86 = 0.62 on the input side, 1.08 x 0.86 = 0.93 at the output
 GRAD_LOW = 0.72          # value multiplier at a section's input side
 GRAD_HIGH = 1.08         # ...and at its output side
 GRAD_SAT = 0.14          # saturation lifts slightly downstream too
@@ -163,8 +163,8 @@ def gradient_rgb(role, t, frame=False):
     t = 0.0 if t < 0.0 else (1.0 if t > 1.0 else t)
     if frame:
         return colorsys.hsv_to_rgb(h / 360.0, s * FRAME_SAT_MUL, FRAME_VAL)
-    #  ramp AROUND the icon-strength base, so the section still reads as one
-    #  saturated family with a visible left-to-right flow
+    # ramp AROUND the icon-strength base, so the section still reads as one
+    # saturated family with a visible left-to-right flow
     s2 = min(1.0, s * 1.7 + 0.10)
     v2 = 0.86 * (GRAD_LOW + (GRAD_HIGH - GRAD_LOW) * t)
     s2 *= 1.0 - GRAD_SAT * 0.5 + GRAD_SAT * t
@@ -194,17 +194,17 @@ def _role_of(node):
     return best if gap < 22.0 else None
 
 
-#  How far apart the second, third... frame of the same section are nudged in
-#  hue. Big enough to tell two OPERATOR blocks apart, small enough that they
-#  still obviously belong to each other.
+#how far apart the second, third... frame of the same section are nudged in
+#hue. Big enough to tell two OPERATOR blocks apart, small enough that they
+#still obviously belong to each other
 #
-#  🔴 REPEATS ALTERNATE DIRECTION (+11, -11, +22, ...) rather than marching
-#  one way. Marching +11 each time walks a repeated section TOWARD its
-#  clockwise neighbour - the second OPERATOR block ended up 10 degrees from
-#  EMITTER, wearing the wrong section's colour at exactly the place colour is
-#  supposed to be navigation. Alternating keeps every repeat 11 degrees from
-#  its own base, which the 25-degree section spacing guarantees is nearer its
-#  own family than anyone else's.
+#🔴 REPEATS ALTERNATE DIRECTION (+11, -11, +22, ...) rather than marching
+#one way. Marching +11 each time walks a repeated section TOWARD its
+#clockwise neighbour - the second OPERATOR block ended up 10 degrees from
+#EMITTER, wearing the wrong section's colour at exactly the place colour is
+#supposed to be navigation. Alternating keeps every repeat 11 degrees from
+#its own base, which the 25-degree section spacing guarantees is nearer its
+#own family than anyone else's
 SIBLING_HUE_STEP = 11.0
 
 
@@ -282,16 +282,16 @@ def gradient_nodes(ng):
     return painted
 
 
-#  ── the FLOW ramp, for nodes no section claims ──────────────────────────────
+# ── the FLOW ramp, for nodes no section claims ──────────────────────────────
 #
-#  Plumbing - group inputs and outputs, reroutes, glue maths built without a
-#  role - used to sit grey between the coloured sections. Grey says "I don't
-#  matter", which is wrong: a Group Input is where everything ENTERS. So the
-#  unclaimed nodes wear a flow ramp instead: ORANGE on the input side of the
-#  graph fading to BLUE on the output side, matching the palette's own
-#  warm-changes / cool-is-read logic. Section-coloured nodes are untouched -
-#  the ramp only exists where the palette has nothing to say.
-#  Node strength, like everything else now - dim plumbing was invisible.
+# Plumbing - group inputs and outputs, reroutes, glue maths built w/o a
+# role - used to sit grey between the coloured sections. Grey says "I don't
+# matter", which is wrong: a Group Input is where everything ENTERS. So the
+# unclaimed nodes wear a flow ramp instead: ORANGE on the input side of the
+# graph fading to BLUE on the output side, matching the palette's own
+# warm-changes / cool-is-read logic. Section-coloured nodes are untouched -
+# the ramp only exists where the palette has nothing to say
+# Node strength, like everything else now - dim plumbing was invisible
 FLOW_IN = colorsys.hsv_to_rgb(28 / 360.0, 0.58, 0.80)    # orange = input
 FLOW_OUT = colorsys.hsv_to_rgb(215 / 360.0, 0.58, 0.80)  # blue = output
 
@@ -322,12 +322,12 @@ def recolour_all(ng):
             "flow": recolour_flow(ng)}
 
 
-# ── geometry helpers ─────────────────────────────────────────────────────────
+#── geometry helpers ─────────────────────────────────────────────────────────
 #
-#  A child node's `location` is RELATIVE TO ITS FRAME, and frames can nest, so
-#  anything comparing two nodes has to walk up to absolute coordinates first.
-#  Comparing raw locations across frames is how a de-overlap pass ends up
-#  making the overlap worse.
+#A child node's `location` is RELATIVE TO its FRAME, and frames can nest, so
+#anything comparing two nodes has to walk up to absolute coordinates first
+#Comparing raw locations across frames is how a de-overlap pass ends up
+#making the overlap worse.
 
 DEFAULT_W = 160.0
 DEFAULT_H = 120.0
@@ -345,9 +345,9 @@ def absolute(node):
 
 def _size(node):
     w = node.width or DEFAULT_W
-    # Node.height is unreliable until a node has been drawn - in background
-    # mode it is often the default. Guessing generously is the safe error:
-    # too much space is untidy, too little is overlap.
+    # node.height is unreliable until a node has been drawn - in background
+    # mode it's often the default. Guessing generously is the safe error:
+    # too much space is untidy, too little is overlap
     h = node.height if node.height and node.height > 1 else DEFAULT_H
     return w, max(h, 30.0)
 
@@ -412,7 +412,7 @@ def dead_ends(ng):
             and n.name in eats and n.name not in feeds]
 
 
-# ── 2. overlapping frames ────────────────────────────────────────────────────
+#── 2. overlapping frames ────────────────────────────────────────────────────
 
 def rect_of(ng, node):
     """A node's absolute rectangle. For a frame, the box it actually draws."""
@@ -421,7 +421,7 @@ def rect_of(ng, node):
         if r is None:
             x, y = absolute(node)
             r = (x, y - (node.height or 200.0), x + (node.width or 300.0), y)
-        # a frame draws a margin around its contents, plus its label above
+        #a frame draws a margin around its contents, plus its label above
         pad = node.label_size * 0.9 + 12.0
         return (r[0] - pad, r[1] - pad, r[2] + pad, r[3] + pad)
     x, y = absolute(node)
@@ -549,15 +549,15 @@ def spread_frames(ng, gap=120.0, passes=12):
 
 # Blender draws frame text at label_size, one line under the next, with the
 # label above it. Measured against the real thing rather than derived: a
-# 16pt frame label leaves lines about 1.35x its size apart.
+# 16pt frame label leaves lines about 1.35x its size apart
 LINE = 1.35
 TEXT_PAD = 24.0
-CHAR_W = 0.52          # average glyph width as a fraction of label_size
+CHAR_W = 0.52          #average glyph width as a fraction of label_size
 
 
-#  The order sections are laid out in - SFM's own, which is also the order the
-#  modifier panels are stacked in. Reading the graph left to right then top to
-#  bottom therefore walks the effect in the same order as reading the panel.
+# the order sections are laid out in - SFM's own, which is also the order the
+# modifier panels are stacked in. Reading the graph left to right then top to
+# bottom therefore walks the effect in the same order as reading the panel
 SECTION_ORDER = (
     "CONTROL POINTS", "SYSTEM PROPERTIES", "TIME",
     "EMITTER", "INITIALIZER", "OPERATOR", "FORCE GENERATOR",
@@ -728,19 +728,19 @@ def split_group_inputs(ng):
             except Exception:
                 continue
             try:
-                #  NO explicit remove: links.new onto an occupied single-
-                #  input socket replaces the old link in ONE operation.
-                #  Every link mutation costs a FULL tree update - measured
-                #  O(node count), 4.4ms each on a 2500-node tree - so the
-                #  remove-then-new pair paid that tax twice per link and
-                #  was half of this function's 24s on a nine-system import.
+                #NO explicit remove: links.new onto an occupied single-
+                #input socket replaces the old link in ONE operation
+                #Every link mutation costs a FULL tree update - measured
+                #O(node count), 4.4ms each on a 2500-node tree - so the
+                #remove-then-new pair paid that tax twice per link and
+                #was half of this function's 24s on a nine-system import
                 ng.links.new(gi.outputs[idx], to_sock)
                 used.add(idx)
             except Exception as exc:
                 print(f"[HT_LAYOUT]  split input link failed in "
                       f"{frame.label!r}: {exc}")
-        #  fresh sockets start visible - only the unused ones need a write,
-        #  which is most of them, but half the RNA traffic of writing all
+        # fresh sockets start visible - only the unused ones need a write,
+        # which is most of them, but half the RNA traffic of writing all
         for i, out in enumerate(gi.outputs):
             if i not in used:
                 try:
@@ -749,8 +749,8 @@ def split_group_inputs(ng):
                     pass
         made += 1
 
-    #  What does each surviving main still feed? One pass over the links
-    #  instead of hundreds of per-socket is_linked reads per node.
+    # what does each surviving main still feed? One pass over the links
+    # instead of hundreds of per-socket is_linked reads per node.
     still = {}
     for l in ng.links:
         if l.from_node.bl_idname == "NodeGroupInput":
@@ -801,31 +801,31 @@ def corner_the_ends(ng, margin=400.0):
         # A Group Input PARENTED TO A FRAME is a section's own local input,
         # placed there by split_group_inputs so its links stay short. Yanking
         # it to the corner would undo the whole untangling, so only the
-        # global, unparented ends are cornered.
+        # global, unparented ends are cornered
         if n.bl_idname == "NodeGroupInput" and n.parent is None:
             n.location = (x0 - margin, y0)
         elif n.bl_idname == "NodeGroupOutput" and n.parent is None:
             n.location = (x1 + margin, y1)
 
 
-# ── 5. work the positions out from the links ─────────────────────────────────
+#── 5. work the positions out from the links ─────────────────────────────────
 #
-#  Hand-placed coordinates rot. Every node in a generated graph was given an
-#  (x, y) by whoever wrote the builder, and the moment a node is inserted the
-#  numbers around it are wrong - which is how a graph ends up tangled and
-#  overlapping while every individual line of code looks reasonable.
+#Hand-placed coordinates rot. Every node in a generated graph was given an
+#(x, y) by whoever wrote the builder, and the moment a node is inserted the
+#numbers around it are wrong - which is how a graph ends up tangled and
+#overlapping while every individual line of code looks reasonable.
 #
-#  So don't place nodes. DERIVE them:
+#So don't place nodes. DERIVE them:
 #
-#      column = the LONGEST path from an input to that node
-#      row    = a free slot in that column, inside its own frame
+#column = the LONGEST path from an input to that node
+#row    = a free slot in that column, inside its own frame
 #
-#  Longest path, not shortest: a node must sit to the right of EVERY node
-#  feeding it, and the shortest path only guarantees it sits right of one of
-#  them. That single choice is what removes backwards-pointing links.
+#Longest path, not shortest: a node must sit to the right of every node
+#feeding it, and the shortest path only guarantees it sits right of one of
+#them. That single choice is what removes backwards-pointing links
 
-COL_W = 260.0          # a 140-160 wide node plus room for the wires
-ROW_H = 320.0          # tall enough for a multi-socket group node
+COL_W = 260.0          #a 140-160 wide node plus room for the wires
+ROW_H = 320.0          #tall enough for a multi-socket group node
 FRAME_GAP = 260.0
 
 
@@ -900,7 +900,7 @@ def arrange(ng, col_w=COL_W, row_h=ROW_H):
                 n.location = (col * col_w, -row * row_h)
         return (max(by_col) + 1) * col_w, rows * row_h
 
-    # frames first, each in its own coordinate space
+    #frames first, each in its own coordinate space
     sizes = {}
     for f in frames:
         kids = buckets.get(f.name, [])
@@ -921,9 +921,9 @@ def arrange(ng, col_w=COL_W, row_h=ROW_H):
         f.location = (0.0, band_top)
         band_top -= sizes[f][1] + FRAME_GAP
 
-    # Nodes in no frame keep the same global columns - so the left-to-right
-    # flow still holds - and get the last band to themselves, where they read
-    # as "not part of a section".
+    #Nodes in no frame keep the same global columns - so the left-to-right
+    #flow still holds - and get the last band to themselves, where they read
+    #as "not part of a section"
     loose = buckets.get(None, [])
     if loose:
         lay_out(loose)
@@ -972,10 +972,10 @@ def apply_hand_layout(ng):
         return None
     if not ng.name.startswith(ras_layout.SYSTEM_PREFIX):
         return None
-    #  ONE TABLE PER RENDERER. Sprites, rope and sprite trail all build under
-    #  the same group-name prefix and share most of the upstream graph, so
-    #  the name cannot pick the table - which "SP · RENDERER · render_*"
-    #  group the system instances can, and does.
+    # one TABLE PER RENDERER. Sprites, rope and sprite trail all build under
+    # the same group-name prefix and share most of the upstream graph, so
+    # the name cannot pick the table - which "SP · RENDERER · render_*"
+    # group the system instances can, and does
     renderer = None
     for n in ng.nodes:
         tree = getattr(n, "node_tree", None)
@@ -1027,18 +1027,18 @@ def _node_ident(n):
 def _apply_table(nt, table, version):
     nodes = nt.nodes
 
-    #  MATCH BY NAME, THEN BY IDENTITY - because names are BIRTH-ORDER
-    #  ARTIFACTS. A .pcf import sizes its CP selector chains to the FILE's
-    #  control point count and can stack operators, which shifts every
-    #  auto-generated name created after them - so an imported system never
-    #  matched the table by name alone and fell back to the heap. Two passes:
-    #    1. same name AND the identity agrees - the canonical build, cheap;
-    #    2. leftover table entries claim unclaimed nodes wearing the same
-    #       identity (its label, or its group's name prefix), paired in
-    #       creation order - Blender's .001/.002 suffixes sort with creation,
-    #       so duplicates like the CP chains stay aligned.
-    #  Nodes neither pass claims (a variant's extra instances) keep their
-    #  builder position INSIDE their section frame and ride along with it.
+    # MATCH BY NAME, THEN BY IDENTITY - bc names are BIRTH-ORDER
+    # ARTIFACTS. A .pcf import sizes its CP selector chains to the FILE's
+    # control point count and can stack operators, which shifts every
+    # auto-generated name created after them - so an imported system never
+    # matched the table by name alone and fell back to the heap. Two passes:
+    # 1. same name and the identity agrees - the canonical build, cheap;
+    # 2. leftover table entries claim unclaimed nodes wearing the same
+    # identity (its label, or its group's name prefix), paired in
+    # creation order - Blender's .001/.002 suffixes sort with creation,
+    # so duplicates like the CP chains stay aligned
+    # Nodes neither pass claims (a variant's extra instances) keep their
+    # builder position INSIDE their section frame and ride along with it.
     match = {}
     claimed = set()
     for name, (_p, _loc, _w, ident) in table["NODES"].items():
@@ -1065,41 +1065,41 @@ def _apply_table(nt, table, version):
             claimed.add(n.name)
 
     total = sum(1 for n in nodes if n.bl_idname != "NodeFrame")
-    #  🔴 THE GATE ASKS "DID THE TABLE FIND ITS NODES?", NOT "DOES THE TABLE
-    #  COVER THE GRAPH?" - and getting that backwards threw away every hand
-    #  layout on a real import.
+    # 🔴 THE GATE ASKS "DID THE TABLE FIND ITS NODES?", NOT "DOES THE TABLE
+    # COVER the GRAPH?" - and getting that backwards threw away every hand
+    # layout on a real import
     #
-    #  It used to divide by the BUILT graph, so a table that matched 160 of
-    #  its own 160 entries - a PERFECT score - was refused at 160/230 = 70%
-    #  because the build also carried 70 nodes no table could ever own: the
-    #  per-sequence ladder ("seq 5 start", "seq 5 length", ... four uniquely
-    #  labelled nodes PER SEQUENCE, and a sheet can have ten), extra operator
-    #  instances, longer CP chains. The richer the effect, the more certain
-    #  the refusal - exactly backwards, since that is where a clean layout is
-    #  worth the most, and no amount of hand-cleaning could ever fix it
-    #  (cleaning a 10-sequence file just moves the impossibility to 4).
+    # It used to divide by the BUILT graph, so a table that matched 160 of
+    # its own 160 entries - a PERFECT score - was refused at 160/230 = 70%
+    # because the build also carried 70 nodes no table could ever own: the
+    # per-sequence ladder ("seq 5 start", "seq 5 length", ... four uniquely
+    # labelled nodes PER SEQUENCE, and a sheet can have ten), extra operator
+    # instances, longer CP chains. The richer the effect, the more certain
+    # the refusal - exactly backwards, since that is where a clean layout is
+    # worth the most, and no amount of hand-cleaning could ever fix it
+    # (cleaning a 10-sequence file just moves the impossibility to 4)
     #
-    #  What the gate is actually for is catching the WRONG table (the family
-    #  key picked badly, or the builder changed shape underneath it). That
-    #  shows up as table entries failing to find identities - table-side
-    #  coverage. The build-side number stays as a sanity FLOOR, so a handful
-    #  of table entries can never claim to lay out a huge graph.
+    # What the gate is actually for is catching the WRONG table (the family
+    # key picked badly, or the builder changed shape underneath it). That
+    # shows up as table entries failing to find identities - table-side
+    # coverage. The build-side number stays as a sanity FLOOR, so a handful
+    # of table entries can never claim to lay out a huge graph
     #
-    #  Surplus nodes are not homeless: they keep their builder position
-    #  inside their section frame and ride along with it (below).
-    #  A VARIANT MISSES IN BOTH DIRECTIONS, AND BOTH ARE LEGITIMATE:
-    #    build RICHER than the table  - ten sequences, stacked operators, a
-    #      longer CP chain: surplus nodes with no entry to claim them
-    #      (measured: a trail at 160/160 entries but only 70% of the graph);
-    #    build SIMPLER than the table - the workbench was cleaned from a
-    #      fatter system, so entries find no node (measured: sprites at
-    #      164/227 entries covering 87% of the graph).
-    #  Neither means the table is WRONG - and the wrong-family case cannot
-    #  even reach here, because TABLES is keyed by the renderer group the
-    #  system instances. So the gate only has to catch a table that is
-    #  genuinely stale (the builder changed shape underneath it), which
-    #  shows as BOTH numbers collapsing. Anything else applies, and the
-    #  surplus rides along inside its section frame.
+    # Surplus nodes are not homeless: they keep their builder position
+    # inside their section frame and ride along with it (below)
+    # A VARIANT MISSES IN BOTH DIRECTIONS, AND BOTH ARE LEGITIMATE:
+    # build RICHER than the table  - ten sequences, stacked operators, a
+    # longer CP chain: surplus nodes with no entry to claim them
+    # (measured: a trail at 160/160 entries but only 70% of the graph);
+    # build SIMPLER than the table - the workbench was cleaned from a
+    # fatter system, so entries find no node (measured: sprites at
+    # 164/227 entries covering 87% of the graph).
+    # Neither means the table is WRONG - and the wrong-family case can't
+    # even reach here, because TABLES is keyed by the renderer group the
+    # system instances. So the gate only has to catch a table that is
+    # genuinely stale (the builder changed shape underneath it), which
+    # shows as BOTH numbers collapsing. Anything else applies, and the
+    # surplus rides along inside its section frame.
     entries = sum(1 for _n, (_p, _l, _w, _i) in table["NODES"].items())
     tcov = (len(match) / entries) if entries else 0.0
     bcov = (len(match) / total) if total else 0.0
@@ -1185,8 +1185,8 @@ def tidy(ng, prune=True, headroom=True, spread=False, corners=True,
         arrange(ng)
         report["overlaps_after"] = node_overlaps(ng)
     if split_inputs:
-        # BEFORE headroom/pack: the per-section inputs become part of their
-        # section's contents, so the packer must see them when it measures.
+        #BEFORE headroom/pack: the per-section inputs become part of their
+        #section's contents, so the packer must see them when it measures.
         report["split_inputs"] = split_group_inputs(ng)
     if headroom:
         report["headroom"] = text_headroom(ng)
@@ -1196,12 +1196,12 @@ def tidy(ng, prune=True, headroom=True, spread=False, corners=True,
         report["moved"] = spread_frames(ng)
     if corners:
         corner_the_ends(ng)
-    #  THE HAND-CLEANED LAYOUT WINS. After the movers, before the colour
-    #  passes (the gradient measures positions, so it has to see the final
-    #  ones). The movers still run first: they are deterministic, they attach
-    #  the note texts and split the inputs, and everything they placed is
-    #  simply overridden for the nodes the table knows - while a variant
-    #  build the table refuses keeps their result untouched.
+    # THE HAND-CLEANED LAYOUT WINS. After the movers, before the colour
+    # passes (the gradient measures positions, so it has to see the final
+    # ones). The movers still run first: they are deterministic, they attach
+    # the note texts and split the inputs, and everything they placed is
+    # simply overridden for the nodes the table knows - while a variant
+    # build the table refuses keeps their result untouched.
     hand = apply_hand_layout(ng)
     if hand is not None:
         report["hand_layout"] = hand
@@ -1212,9 +1212,9 @@ def tidy(ng, prune=True, headroom=True, spread=False, corners=True,
                   + (f", {extra} extra node(s) ride in their section frames)"
                      if extra > 0 else ")"))
         elif hand.get("applied") is False:
-            #  Say WHICH coverage failed - table-side means the wrong table
-            #  or a builder change; build-side means a table far too small
-            #  for this graph. Guessing between them used to cost an hour.
+            # Say which coverage failed - table-side means the wrong table
+            # or a builder change; build-side means a table far too small
+            # for this graph. Guessing between them used to cost an hour.
             print(f"[HT_LAYOUT]  {ng.name}: hand layout refused - "
                   f"{hand['matched']}/{hand.get('entries', '?')} table "
                   f"entries placed ({hand.get('table_cov', 0):.0%}), "

@@ -1,38 +1,38 @@
 # =============================================================================
-#  tools/ras_nodes.py  -  RENDER ANIMATED SPRITES, built out of SFM's own parts
+# tools/ras_nodes.py  -  RENDER ANIMATED SPRITES, built out of SFM's own parts
 # =============================================================================
 #
-#  One node group per SFM operator, each with its own ENABLE toggle, wired into
-#  a top-level group whose modifier panels are the SFM sections:
+# One node group per SFM operator, each with its own ENABLE toggle, wired into
+# a top-level group whose modifier panels are the SFM sections:
 #
-#      CONTROL POINTS · RENDERER · EMITTER · INITIALIZER · OPERATOR
-#      FORCE GENERATOR · CONSTRAINT · CHILDREN
+# control points · renderer · emitter · initializer · operator
+# force generator · constraint · children
 #
-#  STATELESS on purpose - no simulation zone, no cache, no bake. Every
-#  particle's whole life is derived from the clock and its slot number, so you
-#  can scrub the timeline in BOTH directions and it is always right.
+# STATELESS on purpose - no simulation zone, no cache, no bake. Every
+# particle's whole life is derived from the clock and its slot number, so you
+# can scrub the timeline in both directions and it is always right
 #
-#  THE EMISSION RING
+# THE EMISSION RING
 #  -----------------
-#  "Max Particles" slots sit in a ring. Slot i is born at
-#      birth = emission start + i / emission rate
-#  and the ring recycles every (Max Particles / rate) seconds. A slot is only
-#  visible while its age is inside its lifetime, so raising the rate really
-#  does emit more often. Keep Max Particles >= rate x longest lifetime or the
-#  ring wraps before particles have died and you get gaps.
+# "Max Particles" slots sit in a ring. Slot i is born at
+# birth = emission start + i / emission rate
+# and the ring recycles every (Max Particles / rate) secs. A slot is only
+# visible while its age is inside its lifetime, so raising the rate really
+# does emit more often. Keep Max Particles >= rate x longest lifetime or the
+# ring wraps before particles have died and you get gaps.
 #
-#  THE OPERATOR ENVELOPE (verified against the Valve wiki, Generic Operator
-#  Options - developer.valvesoftware.com/wiki/Particle_System_Operators/
-#  Generic_Operator_Options)
-#      operator start/end fadein  - operator ramps 0 -> full strength
-#      operator start/end fadeout - operator ramps full -> 0
-#      operator fade oscillate    - when 0, the four times above are RAW
-#                                   SECONDS since the system started. When set
-#                                   to N seconds they become PROPORTIONS of N
-#                                   and the whole envelope LOOPS every N
-#                                   seconds. So oscillate 5 with fadein 0.2
-#                                   means one second in, repeating every five.
-#  All four at zero = operator always fully on, which is the common default.
+# the OPERATOR ENVELOPE (verified against the Valve wiki, Generic Operator
+# Options - developer.valvesoftware.com/wiki/Particle_System_Operators/
+# Generic_Operator_Options)
+# operator start/end fadein  - operator ramps 0 -> full strength
+# operator start/end fadeout - operator ramps full -> 0
+# operator fade oscillate    - when 0, the four times above are RAW
+# SECONDS since the system started. When set
+# to N secs they become PROPORTIONS of N
+# and the whole envelope LOOPS every N
+# seconds. So oscillate 5 with fadein 0.2
+# means one second in, repeating every five.
+# All four at zero = operator always fully on, which is the common default
 # =============================================================================
 
 import bpy
@@ -76,7 +76,7 @@ def _enable_mix(ng, gi, enable_idx, off_node, off_out, on_node, on_out,
 
 
 # =============================================================================
-#  THE COMMON OPERATOR ENVELOPE
+# THE COMMON OPERATOR ENVELOPE
 # =============================================================================
 
 def build_envelope():
@@ -206,7 +206,7 @@ everything.
 
 
 # =============================================================================
-#  EMITTER
+# EMITTER
 # =============================================================================
 
 def build_emit_continuously():
@@ -232,10 +232,10 @@ def build_emit_continuously():
                    role="EMITTER", operation="DIVIDE")
     _sv(want_gap, 0, 1.0)
     _lk(ng, rate, 0, want_gap, 1)
-    # A slot may only be reborn once its PREVIOUS life has ended, or particles
-    # pop out of existence mid-flight. So the gap can never be shorter than
-    # (longest lifetime / slots) - which is exactly what capping the
-    # population means: at the cap the emitter throttles, it does not kill.
+    #A slot may only be reborn once its PREVIOUS life has ended, or particles
+    #pop out of existence mid-flight. So the gap can never be shorter than
+    #(longest lifetime / slots) - which is exactly what capping the
+    #population means: at the cap the emitter throttles, it doesn't kill
     slots = _nd(ng, "ShaderNodeMath", (-980, -420), "slots, never zero",
                 role="EMITTER", operation="MAXIMUM")
     _lk(ng, gi, I["Max Particles"], slots, 0)
@@ -384,7 +384,7 @@ def build_emit_sim():
     _sv(rate_on, 1, 0.0)
     _lk(ng, gi, I["Emission Rate"], rate_on, 2)
 
-    # The operator envelope SCALES the rate rather than switching it. A fade
+    # the operator envelope SCALES the rate rather than switching it. A fade
     # out therefore thins the stream out instead of cutting it dead, which is
     # what "operator strength" means everywhere else in SFM.
     rate_eff = _nd(ng, "ShaderNodeMath", (-340, 120), "x envelope strength",
@@ -415,9 +415,9 @@ def build_emit_sim():
     _lk(ng, room, 0, room_pos, 0)
     _sv(room_pos, 1, 0.0)
 
-    # A BURST GOES THROUGH THE SAME CAP. emit_instantaneously adds its
+    # A BURST GOES THROUGH the SAME CAP. emit_instantaneously adds its
     # count here, before the cap, so asking for 2000 with a cap of 200 gets
-    # 200 - and the rest are never born rather than queued.
+    # 200 - and the rest are never born rather than queued
     plus_burst = _nd(ng, "ShaderNodeMath", (320, 220), "+ any burst",
                      role="EMITTER", operation="ADD")
     _lk(ng, want, 0, plus_burst, 0)
@@ -461,7 +461,7 @@ the entire reason this replaced the ring.
 
 
 # =============================================================================
-#  INITIALIZERS
+# INITIALIZERS
 # =============================================================================
 
 def _random_group(name, label, socket, dmin, dmax, salt,
@@ -499,12 +499,12 @@ def _random_group(name, label, socket, dmin, dmax, salt,
                  role="INITIALIZER")
     _lk(ng, salt_n, 0, salt_i, 0)
 
-    # A PLAIN 0..1 ROLL, THEN A MIX - not Random Value between Min and Max.
-    # Two reasons. SFM's *_random_exponent biases WHICH value gets drawn, and
-    # that only exists if the roll is separable from the range. And Random
-    # Value has NO COLOUR TYPE - its data_type only accepts FLOAT, INT,
-    # BOOLEAN and FLOAT_VECTOR, so "RGBA" was silently rejected and Color
-    # Random quietly returned a float. Mix handles every type.
+    #A PLAIN 0..1 ROLL, THEN A MIX - not Random Value between Min and Max.
+    #Two reasons. SFM's *_random_exponent biases which value gets drawn, and
+    #that only exists if the roll is separable from the range. And Random
+    #Value has NO COLOUR TYPE - its data_type only accepts FLOAT, INT,
+    #BOOLEAN and FLOAT_VECTOR, so "RGBA" was silently rejected and Color
+    #Random quietly returned a float. Mix handles every type.
     rv = _nd(ng, "FunctionNodeRandomValue", (-420, 60), f"{label} roll 0..1",
              role="INITIALIZER", data_type="FLOAT")
     _sv(rv, 0, 0.0)
@@ -536,7 +536,7 @@ def _random_group(name, label, socket, dmin, dmax, salt,
     result, extra = sw, []
     if base:
         # rotation_initial is ADDED to the rolled offset, in SFM's own units,
-        # before anything is converted.
+        # before anything is converted
         add_base = _nd(ng, "ShaderNodeMath", (440, 0), "+ initial",
                        role="INITIALIZER", operation="ADD")
         _lk(ng, sw, 0, add_base, 0)
@@ -544,9 +544,9 @@ def _random_group(name, label, socket, dmin, dmax, salt,
         result, extra = add_base, [add_base]
 
     if convert:
-        # SFM UNITS IN, BLENDER UNITS OUT - and the conversion happens HERE,
-        # after the switch, so the Fallback is quoted in SFM's units too. The
-        # number in the modifier is the number the particle editor shows.
+        #SFM UNITS IN, BLENDER UNITS out - and the conversion happens HERE,
+        #after the switch, so the Fallback is quoted in SFM's units too. The
+        #number in the modifier is the number the particle editor shows
         factor, why = {"deg2rad": (0.017453292519943295, "degrees -> radians"),
                        "byte": (1.0 / 255.0, "0..255 -> 0..1")}[convert]
         conv = _nd(ng, "ShaderNodeMath", (640, 0), why, role="INITIALIZER",
@@ -593,7 +593,7 @@ def build_initializers():
     out["radius"] = _random_group(
         "SP · INITIALIZER · Radius Random", "Radius Random",
         "NodeSocketFloat", 8.0, 16.0, 22)
-    # alpha_min / alpha_max are 0..255 BYTES in a .pcf, not 0..1 factors.
+    #alpha_min / alpha_max are 0..255 BYTES in a .pcf, not 0..1 factors.
     out["alpha"] = _random_group(
         "SP · INITIALIZER · Alpha Random", "Alpha Random",
         "NodeSocketFloat", 255.0, 255.0, 33, convert="byte")
@@ -602,12 +602,12 @@ def build_initializers():
         "NodeSocketColor", (1.0, 1.0, 1.0, 1.0), (1.0, 1.0, 1.0, 1.0), 44,
         mix_type="RGBA")
     # rotation_offset_min / max are DEGREES - a full turn is 360, and real
-    # files run -360..360. rotation_initial is added on top.
+    # files run -360..360. rotation_initial is added on top
     out["rotation"] = _random_group(
         "SP · INITIALIZER · Rotation Random", "Rotation Random",
         "NodeSocketFloat", 0.0, 360.0, 55, convert="deg2rad", base=True)
 
-    # ── Position Within Sphere Random ────────────────────────────────────
+    #── Position Within Sphere Random ────────────────────────────────────
     ng = _group("SP · INITIALIZER · Position Within Sphere Random",
                 "GeometryNodeTree")
     _sock(ng, "Offset", "OUTPUT", "NodeSocketVector")
@@ -642,11 +642,11 @@ def build_initializers():
     _sv(rdir, 1, (1.0, 1.0, 1.0))
     _lk(ng, gi, I['ID'], rdir, 2)
     _lk(ng, seed_i, 0, rdir, 3)
-    #  distance_bias SQUASHES THE DIRECTION, componentwise, BEFORE the
-    #  normalize. (1,1,1) is untouched; (1,1,0) kills Z and the sphere
-    #  becomes a flat disc - which is how flat ground effects are authored.
-    #  The re-normalize afterwards is what makes it a shape change rather
-    #  than a size change: only the RATIO of the components matters.
+    #distance_bias SQUASHES the DIRECTION, componentwise, before the
+    #normalize. (1,1,1) is untouched; (1,1,0) kills Z and the sphere
+    #becomes a flat disc - which is how flat ground effects are authored
+    #The re-normalize afterwards is what makes it a shape change rather
+    #than a size change: only the RATIO of the components matters
     bias = _nd(ng, "ShaderNodeVectorMath", (-880, 380),
                "x distance bias [SFM: distance_bias]", role="INITIALIZER",
                operation="MULTIPLY")
@@ -674,7 +674,7 @@ def build_initializers():
 
     # radial speed, along the same direction. Rolled 0..1, BENT BY THE
     # EXPONENT, then mapped onto min..max - a plain Random Value(min, max)
-    # cannot express speed_random_exponent, and real files use 0.5 and 0.1.
+    # can't express speed_random_exponent, and real files use 0.5 and 0.1
     spd_u = _nd(ng, "FunctionNodeRandomValue", (-1060, -160), "roll 0..1",
                 role="INITIALIZER", data_type="FLOAT")
     _sv(spd_u, 0, 0.0)
@@ -729,11 +729,11 @@ def build_initializers():
 
     zero = _nd(ng, "ShaderNodeCombineXYZ", (-360, 420), "off = no offset",
                role="INITIALIZER")
-    # NOTE: these two used to be GeometryNodeSwitch(VECTOR). In Blender 5.2 a
-    # vector Switch here crashed the group-interface structure-type inference
-    # (EXCEPTION_ACCESS_VIOLATION inside calc_structure_type_interface) the
-    # moment anything referenced this group. Mix with a boolean factor is
-    # exactly equivalent for an on/off choice and does not trip it.
+    #NOTE: these two used to be GeometryNodeSwitch(VECTOR). In Blender 5.2 a
+    #vector Switch here crashed the group-interface structure-type inference
+    #(EXCEPTION_ACCESS_VIOLATION inside calc_structure_type_interface) the
+    #moment anything referenced this group. Mix with a boolean factor is
+    #exactly equivalent for an on/off choice and does not trip it
     sw_o = _nd(ng, "ShaderNodeMix", (400, 180), "enabled?",
                role="INITIALIZER", data_type="VECTOR", factor_mode="UNIFORM")
     _lk(ng, gi, 0, sw_o, 0)
@@ -775,11 +775,11 @@ Point work.
     out["sphere"] = ng
 
     # ── Position Modify Offset Random ────────────────────────────────────
-    #  THE GLOBAL SPAWN NUDGE - the most-used operator the importer used to
-    #  drop. Each component rolls independently between Offset Min and Offset
-    #  Max; equal Min and Max is therefore a FIXED offset (lift the flash off
-    #  the ground), a symmetric range is scatter. ADDS onto whatever the
-    #  sphere initializer produced, which is how SFM stacks them.
+    # the GLOBAL SPAWN NUDGE - the most-used operator the importer used to
+    # drop. Each component rolls independently between Offset Min and Offset
+    # Max; equal Min and Max is therefore a FIXED offset (lift the flash off
+    # the ground), a symmetric range is scatter. ADDS onto whatever the
+    # sphere initializer produced, which is how SFM stacks them
     ng = _group("SP · INITIALIZER · Position Modify Offset Random",
                 "GeometryNodeTree")
     _sock(ng, "Offset", "OUTPUT", "NodeSocketVector")
@@ -802,8 +802,8 @@ Point work.
                  role="INITIALIZER")
     _lk(ng, seed_n, 0, seed_i, 0)
 
-    #  FLOAT_VECTOR Random Value rolls each component on its own between the
-    #  min and max vectors - exactly Source's per-component draw.
+    # FLOAT_VECTOR Random Value rolls each component on its own between the
+    # min and max vectors - exactly Source's per-component draw
     roll_v = _nd(ng, "FunctionNodeRandomValue", (-820, 120),
                  "offset, per component", role="INITIALIZER",
                  data_type="FLOAT_VECTOR")
@@ -816,15 +816,15 @@ Point work.
     _lk(ng, roll_v, 0, scaled, 0)
     _lk(ng, gi, I["Scale"], scaled, 3)
 
-    #  "offset in local space 0/1" turns the offset with the control point.
+    # "offset in local space 0/1" turns the offset with the control point.
     local = _nd(ng, "ShaderNodeVectorRotate", (-440, 0),
                 "into the CP's frame", role="INITIALIZER",
                 rotation_type="EULER_XYZ")
     _lk(ng, scaled, 0, local, 0)
     _lk(ng, gi, I["CP Rotation"], local, 4)
-    #  Mix with a boolean factor, NOT a vector GeometryNodeSwitch - see the
-    #  sphere group note: a vector Switch here crashed Blender 5.2's
-    #  structure-type inference the moment anything referenced this group.
+    # mix with a boolean factor, not a vector GeometryNodeSwitch - see the
+    # sphere group note: a vector Switch here crashed Blender 5.2's
+    # structure-type inference the moment anything referenced this group
     pick = _nd(ng, "ShaderNodeMix", (-260, 60), "local space?",
                role="INITIALIZER", data_type="VECTOR", factor_mode="UNIFORM")
     _lk(ng, gi, I["Local Space"], pick, 0)
@@ -950,7 +950,7 @@ Disabled -> everything plays sequence 0.
 
 
 # =============================================================================
-#  OPERATORS
+# OPERATORS
 # =============================================================================
 
 def build_movement_lock_to_cp():
@@ -1008,7 +1008,7 @@ off":
 
 
 # =============================================================================
-#  WHERE IS THE EYE?  -  shared by every renderer
+# where IS the EYE?  -  shared by every renderer
 # =============================================================================
 
 def build_camera_eye(viewport=False):
@@ -1035,9 +1035,9 @@ def build_camera_eye(viewport=False):
     ng = _group("SP · RENDERER · the eye"
                 + (" · viewport" if viewport else ""), "GeometryNodeTree")
     _sock(ng, "Eye", "OUTPUT", "NodeSocketVector")
-    #  0.24.0: the camera's ROTATION too - SFM's orientation 0 is SCREEN-
-    #  ALIGNED (every card parallel to the screen, up = the camera's up), and
-    #  only the camera's own rotation says which way that is.
+    # 0.24.0: the camera's ROTATION too - SFM's orientation 0 is SCREEN-
+    # ALIGNED (every card parallel to the screen, up = the camera's up), and
+    # only the camera's own rotation says which way that is
     _sock(ng, "View Rotation", "OUTPUT", "NodeSocketRotation")
     _sock(ng, "Camera", "INPUT", "NodeSocketObject")
     _sock(ng, "Camera Source", "INPUT", "NodeSocketInt", 0, smin=0, smax=2)
@@ -1061,16 +1061,16 @@ def build_camera_eye(viewport=False):
               role="RENDERER", transform_space="RELATIVE")
     _lk(ng, which, 0, cam, 0)
 
-    # THE VIEWPORT BRANCH ONLY EXISTS WHEN ASKED FOR - see the docstring:
+    # the VIEWPORT BRANCH only EXISTS WHEN ASKED FOR - see the docstring:
     # the Viewport Transform node makes any tree containing it re-evaluate
     # on every view change, selected or not, so the default group must not
-    # contain one at all.
+    # contain one at all
     if viewport:
-        # THE VIEWPORT EYE, CONVERTED INTO THE HOST'S SPACE. Object Info is
+        # the VIEWPORT EYE, CONVERTED INTO the HOST'S SPACE. Object Info is
         # read RELATIVE - in the modified object's frame, which is the frame
         # the particles live in. The viewport matrix is WORLD space, so it
         # has to be pushed through the host's inverse transform or everything
-        # faces a point offset by wherever the host object happens to sit.
+        # faces a point offset by wherever the host object happens to sit
         view = _nd(ng, "GeometryNodeViewportTransform", (-1700, 60),
                    "the viewport", role="RENDERER")
         eye_world = _nd(ng, "FunctionNodeInvertMatrix", (-1500, 60),
@@ -1104,7 +1104,7 @@ def build_camera_eye(viewport=False):
         _lk(ng, cam, 1, eye, 1)
         _lk(ng, eye_local, 0, eye, 2)
         eye_pos, eye_idx = eye, 0
-        #  the viewport's rotation, in the particles' frame
+        #the viewport's rotation, in the particles' frame
         vp_mat = _nd(ng, "FunctionNodeMatrixMultiply", (-1120, -180),
                      "eye transform, in the particles' frame", role="RENDERER")
         _lk(ng, host_inv, 0, vp_mat, 0)
@@ -1121,18 +1121,18 @@ def build_camera_eye(viewport=False):
         vp_nodes = [view, eye_world, eye_split, host, host_info, host_inv,
                     eye_local, use_view, eye, vp_mat, vp_split, rot]
     else:
-        eye_pos, eye_idx = cam, 1          # Object Info's Location output
+        eye_pos, eye_idx = cam, 1          #Object Info's Location output
         view_rot = cam.outputs["Rotation"]
         vp_nodes = []
 
-    #  🔴 NO CAMERA MUST NOT MEAN "FACE THE ORIGIN". With no camera in the
-    #  scene, Object Info reads (0,0,0) and every card aimed at a point
-    #  INSIDE the effect - per-particle orientations all disagreeing, the
-    #  worst case for both the look and the shader. The honest stand-in is a
-    #  camera infinitely far up +Z: every card agrees on one orientation
-    #  (a top-down billboard), which is also the cheapest thing to draw.
-    #  A real camera parked exactly on the origin hits the same switch, and
-    #  loses nothing - it was degenerate before this too.
+    # 🔴 no CAMERA must not MEAN "FACE the ORIGIN". With no camera in the
+    # scene, Object Info reads (0,0,0) and every card aimed at a point
+    # INSIDE the effect - per-particle orientations all disagreeing, the
+    # worst case for both the look and the shader. The honest stand-in is a
+    # camera infinitely far up +Z: every card agrees on one orientation
+    # (a top-down billboard), which is also the cheapest thing to draw.
+    # A real camera parked exactly on the origin hits the same switch, and
+    # loses nothing - it was degenerate before this too
     eye_len = _nd(ng, "ShaderNodeVectorMath", (-740, 200), "is there one?",
                   role="RENDERER", operation="LENGTH")
     _lk(ng, eye_pos, eye_idx, eye_len, 0)
@@ -1149,8 +1149,8 @@ def build_camera_eye(viewport=False):
     _lk(ng, eye_pos, eye_idx, eye_out, 1)
     _lk(ng, far_up, 0, eye_out, 2)
     _lk(ng, eye_out, 0, go, 0)
-    #  no camera: the far-up stand-in looks straight down, which is the
-    #  identity rotation (a camera's -Z is its forward) - cards lie flat.
+    # no camera: the far-up stand-in looks straight down, which is the
+    # identity rotation (a camera's -Z is its forward) - cards lie flat
     rot_out = _nd(ng, "GeometryNodeSwitch", (-360, 40), "the view's rotation, always",
                   role="RENDERER", input_type="ROTATION")
     _lk(ng, no_cam, 0, rot_out, 0)
@@ -1192,14 +1192,14 @@ appears the live read takes over again.
 
 
 # =============================================================================
-#  RENDERER
+# RENDERER
 # =============================================================================
 
 def build_render_animated_sprites(mat, eye_group):
-    # THE MATERIAL IS BAKED INTO THIS GROUP, so the name has to carry it.
+    # THE MATERIAL is BAKED INTO this GROUP, so the name has to carry it
     # Under one shared name, building a second system from a different texture
     # CLEARS this group and refills it with the new material - and clearing an
-    # interface silently drops every link the first system had made into it.
+    # interface silently drops every link the first system had made into it
     ng = _group(f"SP · RENDERER · render_animated_sprites · {mat.name}",
                 "GeometryNodeTree")
     _sock(ng, "Geometry", "OUTPUT", "NodeSocketGeometry")
@@ -1209,18 +1209,18 @@ def build_render_animated_sprites(mat, eye_group):
     _sock(ng, "Orientation Type", "INPUT", "NodeSocketInt", 0)
     _sock(ng, "Orientation CP Rotation", "INPUT", "NodeSocketVector",
           (0.0, 0.0, 0.0))
-    #  NOT SFM - the low-GPU stand-in. See the proxy branch below.
+    # not SFM - the low-GPU stand-in. See the proxy branch below
     _sock(ng, "Proxy View", "INPUT", "NodeSocketBool", False)
     gi, go = _io(ng, (-1700, 0), (1300, 0))
     I = _gin(ng)
 
     # ---- READ THE BAKED ATTRIBUTES, never take live fields ----------------
-    # These are stored on the POINT domain BEFORE dead particles are deleted,
+    # These are stored on the POINT domain before dead particles are deleted,
     # so they travel with each surviving point. Taking them as group inputs
-    # instead meant they were index-dependent fields evaluated AFTER
+    # instead meant they were index-dependent fields evaluated after
     # DeleteGeometry had re-indexed the points - so the instant any particle
     # died, every remaining sprite picked up a neighbour's radius and roll.
-    # That is the "all the sprites suddenly recalculate" bug.
+    # That is the "all the sprites suddenly recalculate" bug
     a_rad = _nd(ng, "GeometryNodeInputNamedAttribute", (-1300, -760),
                 "sprite_radius (baked)", role="RENDERER", data_type="FLOAT")
     _sv(a_rad, 0, "sprite_radius")
@@ -1252,10 +1252,10 @@ def build_render_animated_sprites(mat, eye_group):
         print(f"[HT_RAS]  set material: {exc}")
 
     # ---- where the eye is -------------------------------------------------
-    # BUILT ONCE AND PASSED IN, never built here. _group() CLEARS an existing
+    # BUILT once and PASSED IN, never built here. _group() CLEARS an existing
     # group before refilling it, so a second builder calling build_camera_eye()
     # would wipe this group's interface and silently drop the links the first
-    # renderer had already made into it.
+    # renderer had already made into it
     eye = _nd(ng, "GeometryNodeGroup", (-1300, 400), "where the camera is",
               role="RENDERER")
     eye.node_tree = eye_group
@@ -1269,7 +1269,7 @@ def build_render_animated_sprites(mat, eye_group):
     _lk(ng, eye, 0, to_cam, 0)
     _lk(ng, pos, 0, to_cam, 1)
 
-    # type 0: SCREEN-ALIGNED - the card takes the CAMERA'S ROTATION (0.24.0).
+    # type 0: SCREEN-ALIGNED - the card takes the CAMERA'S ROTATION (0.24.0)
     # 🔴 It used to aim Z at the camera POINT with Align-to-Vector (pivot
     # AUTO), which leaves the roll to the shortest arc: on the calibration kit
     # the cards came out rolled 20-45 degrees, more the further from the
@@ -1277,7 +1277,7 @@ def build_render_animated_sprites(mat, eye_group):
     # card is parallel to the screen with the camera's up as its up, and the
     # camera's own rotation is exactly that.
     billboard = eye
-    # type 1: ERECT. 🔴 Align-to-vector CANNOT do this one: the card's normal
+    # type 1: ERECT. 🔴 Align-to-vector cannot do this one: the card's normal
     # starts at world +Z, and "rotate about pivot Z" never moves +Z anywhere -
     # so the old align node quietly left every type-1 card LYING FLAT. The rod
     # is built directly instead: pitch the card upright (90° about X - its
@@ -1324,12 +1324,12 @@ def build_render_animated_sprites(mat, eye_group):
     _lk(ng, pick1, 0, pick2, 1)
     _lk(ng, cp_rot, 0, pick2, 2)
 
-    # roll happens around the card's OWN Z, i.e. the view axis - so the card
-    # keeps facing the camera and merely spins in place.
+    # roll happens around the card's own Z, i.e. the view axis - so the card
+    # keeps facing the camera and merely spins in place
     #
     # ⚠️ EXCEPT AT ORIENTATION TYPE 1, WHICH IS ERECT ON PURPOSE. Type 1 is a
     # rod through the card's middle: it yaws to face you and stays STRAIGHT -
-    # that is what fire is authored with, so licks of flame never lie on
+    # that's what fire is authored with, so licks of flame never lie on
     # their side. Rolling it about its own normal would tip the upright card
     # over, which is exactly the "fire particles rotate randomly" bug. So the
     # roll angle is switched to zero whenever type == 1.
@@ -1355,7 +1355,7 @@ def build_render_animated_sprites(mat, eye_group):
     _sv(diam, 1, 2.0)
     # X carries the MIRROR. Rotation Yaw Flip Random hands over +1 or -1, and
     # a negative X scale is what yawing a flat card 180 degrees actually looks
-    # like: the same sprite, left-right reversed.
+    # like: the same sprite, left-right reversed
     flip_x = _nd(ng, "ShaderNodeMath", (220, -420), "x sprite_flip",
                  role="RENDERER", operation="MULTIPLY")
     _lk(ng, diam, 0, flip_x, 0)
@@ -1449,12 +1449,12 @@ travel with their point through the delete; live index fields do not.
       is1, is2, pick1, pick2, roll, spun, diam, scale_v, inst, a_rad, a_roll,
       a_flip, flip_x])
 
-    #  PROXY COLOUR - appended at the END so no existing node's birth-order
-    #  name shifts (the hand-layout tables match by name first; see RULES).
-    #  The stand-in used to carry NO material and every system's proxies were
-    #  the same white; a flat per-system colour keeps the cost at zero and
-    #  makes a scene of proxied effects read like Solid shading's Random
-    #  mode - you can tell whose particles are whose at a glance.
+    # PROXY COLOUR - appended at the END so no existing node's birth-order
+    # name shifts (the hand-layout tables match by name first; see RULES).
+    # The stand-in used to carry NO material and every system's proxies were
+    # the same white; a flat per-system colour keeps the cost at zero and
+    # makes a scene of proxied effects read like Solid shading's Random
+    # mode - you can tell whose particles are whose at a glance
     psm = _nd(ng, "GeometryNodeSetMaterial", (-560, -900),
               "the stand-in's own colour", role="RENDERER")
     try:
@@ -1468,14 +1468,14 @@ travel with their point through the delete; live index fields do not.
     _lk(ng, proxy_card, 0, psm, 0)
     _lk(ng, psm, 0, card_pick, 2)
 
-    #  PROXY SIZE IS CLAMPED, NOT PROPORTIONAL - appended at the END, same
-    #  name-stability reason as above. No constant shrink survives contact
-    #  with glow sprites: their radii are authored in the THOUSANDS of HU
-    #  (soft falloff over a huge card), so 1/4, 1/10 and 1/40 all produced
-    #  wall-sized opaque squares. The stand-in is 1/16th of the sprite,
-    #  CAPPED AT 8 HU - small sprites keep a proportional marker, huge ones
-    #  become a hand-sized one, and nothing can obscure the effect. Wired as
-    #  a Switch on the INSTANCE scale so the real card's sizing is untouched.
+    #PROXY SIZE is CLAMPED, NOT PROPORTIONAL - appended at the END, same
+    #name-stability reason as above. No constant shrink survives contact
+    #with glow sprites: their radii are authored in the THOUSANDS of HU
+    #(soft falloff over a huge card), so 1/4, 1/10 and 1/40 all produced
+    #wall-sized opaque squares. The stand-in is 1/16th of the sprite,
+    #CAPPED AT 8 HU - small sprites keep a proportional marker, huge ones
+    #become a hand-sized one, and nothing can obscure the effect. Wired as
+    #a Switch on the INSTANCE scale so the real card's sizing is untouched
     psize = _nd(ng, "ShaderNodeMath", (240, -560), "1/16th of the sprite",
                 role="RENDERER", operation="MULTIPLY")
     _lk(ng, diam, 0, psize, 0)
@@ -1495,7 +1495,7 @@ travel with their point through the delete; live index fields do not.
     _lk(ng, gi, I["Proxy View"], scale_pick, 0)
     _lk(ng, scale_v, 0, scale_pick, 1)
     _lk(ng, pvec, 0, scale_pick, 2)
-    #  links.new onto the occupied Scale input replaces the old link in one
-    #  operation (see layout.split_group_inputs on why that matters).
+    # links.new onto the occupied Scale input replaces the old link in one
+    # operation (see layout.split_group_inputs on why that matters).
     _lk(ng, scale_pick, 0, inst, 6)
     return ng

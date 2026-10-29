@@ -1,38 +1,38 @@
 # =============================================================================
-#  tools/pcf_build.py  -  a parsed .pcf system  ->  a built one
+# tools/pcf_build.py  -  a parsed .pcf system  ->  a built one
 # =============================================================================
 #
-#  Everything else in this add-on was preparation for this file. It contains
-#  no maths and no node building: it decides WHICH renderer, HOW MANY of each
-#  operator, WHAT each socket should be set to, and then calls the builders.
+# Everything else in this add-on was preparation for this file. It contains
+# no maths and no node building: it decides which renderer, HOW MANY of each
+# operator, what each socket should be set to, and then calls the builders.
 #
-#  WHY IT IS A LOOKUP AND NOT A PILE OF IF-STATEMENTS
+# why it is a lookup and not a pile of if-statements
 #  --------------------------------------------------
-#  Every socket the system builds is named
+# Every socket the system builds is named
 #
-#      "Readable name [SFM: exact_pcf_attribute]"
+# "Readable name [SFM: exact_pcf_attribute]"
 #
-#  and `ras_spec` knows that mapping for every operator. So importing an
-#  attribute is: find the socket whose SFM tag is this attribute name, convert
-#  the units, set it. That is the entire translation, and it is why the socket
-#  naming convention was worth the trouble.
+# and `ras_spec` knows that mapping for every operator. So importing an
+# attribute is: find the socket whose SFM tag is this attribute name, convert
+# the units, set it. That is the entire translation, and it is why the socket
+# naming convention was worth the trouble
 #
-#  WHAT IT REFUSES TO DO
+# WHAT IT REFUSES TO DO
 #  ---------------------
-#  🔴 It never guesses. An attribute with no socket is COLLECTED AND REPORTED,
-#  not quietly dropped - because "the effect came through" when a third of its
-#  authoring did not is the single most expensive lie an importer can tell.
-#  Everything skipped comes back in `report["ignored"]`.
+# 🔴 It never guesses. An attribute with no socket is COLLECTED AND REPORTED,
+# not quietly dropped - because "the effect came through" when a third of its
+# authoring did not is the single most expensive lie an importer can tell
+# Everything skipped comes back in `report["ignored"]`.
 #
-#  PARENT AND CHILD
+# PARENT AND CHILD
 #  ----------------
-#  A child is its own object with its own modifier, and it reads its parent's
-#  particles through Object Info. Dependencies therefore run parent -> child
-#  and NEVER back: a parent reading a child is a depsgraph cycle, which
-#  Blender answers with empty geometry and no error at all.
+# A child is its own object with its own modifier, and it reads its parent's
+# particles thru Object Info. Dependencies therefore run parent -> child
+# and never back: a parent reading a child is a depsgraph cycle, which
+# Blender answers with empty geometry and no error at all
 #
-#  Children are built depth-first AFTER their parent exists, so the parent
-#  object is there to be pointed at.
+# Children are built depth-first AFTER their parent exists, so the parent
+# object is there to be pointed at
 # =============================================================================
 
 from . import ras_spec as spec
@@ -40,9 +40,9 @@ from . import pcf, vmt
 
 
 # ── which renderer ───────────────────────────────────────────────────────────
-#  A system's renderer is whatever is in its `renderers` list. Three of
-#  Source's four are built; `render_models` is not, and a system that wants it
-#  is reported rather than silently drawn as sprites.
+# A system's renderer is whatever is in its `renderers` list. Three of
+# Source's four are built; `render_models` is not, and a system that wants it
+# is reported rather than silently drawn as sprites
 
 RENDERER_BY_FN = {
     "render_animated_sprites": "ANIMATED_SPRITES",
@@ -50,9 +50,9 @@ RENDERER_BY_FN = {
     "render_rope": "ROPE",
 }
 
-# Sprites are the overwhelming default - 2569 of 3574 systems - so a system
-# whose renderer we do not recognise is still worth building as sprites, WITH
-# a warning, rather than not built at all.
+# sprites are the overwhelming default - 2569 of 3574 systems - so a system
+# whose renderer we don't recognise is still worth building as sprites, WITH
+# a warning, rather than not built at all
 FALLBACK_RENDERER = "ANIMATED_SPRITES"
 
 
@@ -122,14 +122,14 @@ def operator_elements(sysdef):
 
 # ── units ────────────────────────────────────────────────────────────────────
 #
-#  The socket carries the unit tag from the catalogue, so conversion is a
-#  lookup too. Only two things actually change on the way in.
+# The socket carries the unit tag from the catalogue, so conversion is a
+# lookup too. Only two things actually change on the way in
 
 def convert(value, unit, socket_type):
     """A .pcf value -> what the socket wants. Returns (value, note or None)."""
-    # COLOUR IS 0..255 IN THE FILE AND 0..1 IN A BLENDER SWATCH. This is the
+    # COLOUR IS 0..255 IN the FILE and 0..1 IN A BLENDER SWATCH. This is the
     # one conversion that silently produces a *plausible* wrong answer if
-    # missed - everything just renders white, because 255 clamps to 1.
+    # missed - everything just renders white, because 255 clamps to 1
     if socket_type == "NodeSocketColor":
         try:
             parts = [float(c) for c in value]
@@ -193,15 +193,15 @@ def plan(sysdef, hierarchy=None):
 
     for fn, n in counts.items():
         # ── Set Control Point Positions ──────────────────────────────────
-        #  Not a socket operator: in SFM it re-asserts CP1..CP4's positions
-        #  every frame, relative to CP0 (or wherever "offset positions from"
-        #  points). In Blender the control points are REAL EMPTIES the user
-        #  owns, so fighting them per frame would be hostile. The honest
-        #  translation: apply the authored locations ONCE, as the initial
-        #  placement of the spawned empties - CP0 stays the ground truth and
-        #  every placed CP sits at its authored offset from it, exactly the
-        #  geometry the effect was built around. Move or animate them after
-        #  that and the effect follows, which is strictly more useful.
+        # Not a socket operator: in SFM it re-asserts CP1..CP4's positions
+        # every frame, relative to CP0 (or wherever "offset positions from"
+        # points). In Blender the control points are REAL EMPTIES the user
+        # owns, so fighting them per frame would be hostile. The honest
+        # translation: apply the authored locations once, as the initial
+        # placement of the spawned empties - CP0 stays the ground truth and
+        # every placed CP sits at its authored offset from it, exactly the
+        # geometry the effect was built around. Move or animate them after
+        # that and the effect follows, which is strictly more useful
         if fn == "Set Control Point Positions":
             for elem in elements.get(fn, []):
                 for word, default_idx in (("First", 1), ("Second", 2),
@@ -213,9 +213,9 @@ def plan(sysdef, hierarchy=None):
                         continue
                     if loc is None:
                         continue
-                    #  The authored NUMBER overrides the default slot - a
-                    #  real hologram writes "Fourth Control Point Number 2"
-                    #  and its Fourth location lands on CP2.
+                    # The authored NUMBER overrides the default slot - a
+                    # real hologram writes "Fourth Control Point Number 2"
+                    # and its Fourth location lands on CP2
                     try:
                         idx = int(num) if num is not None else default_idx
                         cp_placements[idx] = tuple(
@@ -223,9 +223,9 @@ def plan(sysdef, hierarchy=None):
                     except (TypeError, ValueError):
                         ignored.append((fn, f"{word} Control Point Location",
                                         "could not read the vector"))
-            #  0.26.3: WHICH FRAME the offsets are in. Source transforms
-            #  them by the head control point's whole matrix, so they turn and
-            #  move with it - unless "Set positions in world space".
+            # 0.26.3: which FRAME the offsets are in. Source transforms
+            # them by the head control point's whole matrix, so they turn and
+            # move with it - unless "Set positions in world space"
             for elem in elements.get(fn, []):
                 try:
                     head = elem.get("Control Point to offset positions from")
@@ -258,21 +258,21 @@ def plan(sysdef, hierarchy=None):
                         pass
             continue
         if fn in spec.ALREADY_HANDLED:
-            # NOT a gap. Reporting it would train you to ignore the warnings
-            # that do matter.
+            # not a gap. Reporting it would train you to ignore the warnings
+            # that do matter
             notes.append(f"{fn}: {spec.ALREADY_HANDLED[fn]}")
             continue
         if fn not in spec.OPERATORS:
-            # NOT BUILT. Say which, and how many times it was asked for, so
-            # the gap is visible in the report rather than in the render.
+            # not BUILT. Say which, and how many times it was asked for, so
+            # the gap is visible in the report rather than in the render
             ignored.append((fn, "*whole operator*", f"x{n}, not built"))
             continue
         stack[fn] = n
         for inst, elem in enumerate(elements.get(fn, []), start=1):
-            # PRESENT IN THE FILE MEANS ON. Some operators default to off in
-            # the builder precisely so a hand-made system is not altered
-            # behind your back - so the importer has to say so explicitly,
-            # rather than relying on whatever the default happens to be.
+            #PRESENT in the FILE MEANS ON. Some operators default to off in
+            #the builder precisely so a hand-made system is not altered
+            #behind your back - so the importer has to say so explicitly,
+            #rather than relying on whatever the default happens to be.
             panel = spec.panel_name(fn, inst)
             enabled.append(panel)
             values[panel] = True
@@ -294,10 +294,10 @@ def plan(sysdef, hierarchy=None):
                     ignored.append((fn, attr, why or "could not convert"))
                     continue
                 values[spec.socket_name(disp, sfm, inst, fn)] = val
-            # 0.24.2: WHAT THE FILE LEAVES OUT IS SOURCE'S DEFAULT, not the
+            # 0.24.2: what the FILE LEAVES out IS SOURCE'S DEFAULT, not the
             # socket's (those are picked for hand-built systems). A .pcf only
             # stores what differs from Source's default - a Radius Random
-            # written without radius_min means radius 1, not 8: the metal
+            # written w/o radius_min means radius 1, not 8: the metal
             # impacts' dust motes came out as big glowing balls.
             stored = set(elem.keys())
             for disp, sfm, _st, _d, _lo, _hi, _u in spec.fields_for(fn):
@@ -305,7 +305,7 @@ def plan(sysdef, hierarchy=None):
                     values[spec.socket_name(disp, sfm, inst, fn)] = \
                         spec.SFM_DEFAULTS[(fn, sfm)]
 
-    # 🔴 AN OPERATOR THE FILE DOES NOT LIST MUST NOT RUN - ANY operator.
+    # 🔴 AN OPERATOR THE FILE DOES not LIST MUST not RUN - ANY operator.
     # The builder gives every catalogue operator a panel, and panels that
     # default ON (so a hand-built system shows something) silently ran on
     # imports too. That gave burst-only shockwaves a phantom 20/s stream,
@@ -313,7 +313,7 @@ def plan(sysdef, hierarchy=None):
     # zeus strike's screen-filling flare cards jazz-handed at random angles
     # SFM never gave them - and slid a phantom 0.25 fade in/out under
     # systems that never authored one. Present in the file means ON;
-    # absent means OFF, for everything with an enable toggle.
+    # absent means OFF, for everything with an enable toggle
     #
     # Renderers are exempt: exactly one is always built (with a fallback
     # when the file names none), and its panel toggle drives nothing.
@@ -325,7 +325,7 @@ def plan(sysdef, hierarchy=None):
     # 0.24.1: WHAT A PARTICLE IS BORN WITH WHEN NO INITIALIZER SETS IT.
     # SFM uses the system's own `color` (white unless authored) and `radius`
     # (5 unless authored). The importer used white and 8 - the concrete
-    # impacts' dust flipbook is authored grey (98) and came out white.
+    # impacts' dust flipbook is authored grey (98) and came out white
     if not counts.get("Color Random"):
         try:
             c = sysdef.get("color")
@@ -343,7 +343,7 @@ def plan(sysdef, hierarchy=None):
         values[spec.socket_name("Radius Min", "radius_min", 1, "Radius Random")] = (
             float(r) if r is not None else 5.0)
 
-    # SYSTEM PROPERTIES live on the definition itself, not on an operator.
+    # SYSTEM PROPERTIES live on the definition itself, not on an operator
     for attr, socket in (("max_particles", "Max Particles [SFM: max_particles]"),):
         try:
             v = sysdef.get(attr)
@@ -361,12 +361,12 @@ def plan(sysdef, hierarchy=None):
     # - a root whose whole job is to hold children, which is how an author
     # groups one effect out of eight. Building it as a sprite system produces
     # an object that emits nothing and draws nothing, so it gets an ANCHOR
-    # instead and the children hang off that.
+    # instead and the children hang off that
     container = rend_fn is None and not counts
 
     # A placed control point must EXIST: the hologram writes CP3's location
     # while nothing else ever references CP3, so the count from the index
-    # scan alone would come up short.
+    # scan alone would come up short
     cp_count = max(1, cp["count"])
     if cp_placements:
         cp_count = max(cp_count, max(cp_placements) + 1)

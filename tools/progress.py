@@ -22,7 +22,7 @@ except Exception:                                             # pragma: no cover
     blf = gpu = batch_for_shader = None
 
 
-PUMP_INTERVAL = 0.15        # seconds between forced repaints
+PUMP_INTERVAL = 0.15        # secs between forced repaints
 BAR_W_MAX = 560             # overlay width cap, px
 GREEN = (0.42, 0.78, 0.34, 1.0)      # the family's session-import green
 TRACK = (0.30, 0.30, 0.33, 1.0)
@@ -149,8 +149,8 @@ class job:
         self.owner = False
 
     def __enter__(self):
-        #  A nested job (a step operator called by the one-click) must not
-        #  steal or end the outer bar.
+        # A nested job (a step operator called by the one-click) must not
+        # steal or end the outer bar.
         if not _S["on"]:
             self.owner = begin(self.title, self.phase_total)
         return self
@@ -177,7 +177,7 @@ def jobbed(title, phase_total=0):
 
 
 # ---------------------------------------------------------------------------
-#  The pump - status text, cursor %, and the forced repaint
+# The pump - status text, cursor %, and the forced repaint
 # ---------------------------------------------------------------------------
 
 def _overall():
@@ -211,15 +211,15 @@ def _redraw():
     if bpy.app.background:
         return
     try:
-        #  Repaint and SWAP every window right now. The one call that makes
-        #  a blocking pipeline visibly alive.
+        # repaint and SWAP every window right now. The one call that makes
+        # a blocking pipeline visibly alive
         bpy.ops.wm.redraw_timer(type='DRAW_WIN_SWAP', iterations=1)
     except Exception:
         pass
 
 
 # ---------------------------------------------------------------------------
-#  The overlay
+# The overlay
 # ---------------------------------------------------------------------------
 
 def _rect(shader, x, y, w, h, color):
@@ -250,8 +250,8 @@ def _draw():
         _rect(shader, x, y, width, height, BACK)
         _rect(shader, x, y + height - 1, width, 1, EDGE)
 
-        #  The bar: a 5 px track with the overall fill; a sweeping segment
-        #  when the phase cannot count itself.
+        # the bar: a 5 px track with the overall fill; a sweeping segment
+        # when the phase cannot count itself.
         bx, by, bw, bh = x + pad, y + 12.0, width - 2 * pad, 5.0
         _rect(shader, bx, by, bw, bh, TRACK)
         if _S["frac"] is None and _S["phase_total"] <= 0:
@@ -287,5 +287,5 @@ def _draw():
         blf.draw(font, sub[:110])
         blf.disable(font, blf.SHADOW)
     except Exception:
-        #  A progress bar must never take the viewport down. Disarm.
+        # A progress bar must never take the viewport down. Disarm
         _S["on"] = False

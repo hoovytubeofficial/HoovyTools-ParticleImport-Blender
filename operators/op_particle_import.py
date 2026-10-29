@@ -1,25 +1,25 @@
 ﻿# =============================================================================
-#  operators/op_particle_import.py  -  "import a .pcf like in SFM"
+# operators/op_particle_import.py  -  "import a .pcf like in SFM"
 # =============================================================================
 #
-#  THE UI (mirrors SFM's "Choose Particle System" dialog)
-#      Particle System Definition File:  [ path        ] [ Browse... ]
-#      Particle System Definition:       [ dropdown v  ]
-#      Start Time / Emission Duration / Particle System Lifetime
-#                                          [ OK ] [ Cancel ]
+# THE UI (mirrors SFM's "Choose Particle System" dialog)
+# Particle System Definition File:  [ path        ] [ Browse... ]
+# Particle System Definition:       [ dropdown v  ]
+# Start Time / Emission Duration / Particle System Lifetime
+# [ OK ] [ Cancel ]
 #
-#  ONE set of settings, TWO surfaces:
-#    * File > Import > Source Engine Assets (.PCF)  -> pops it as a dialog
-#    * 3D View sidebar > Particle Import            -> the same fields inline
-#  That is why the settings live on scene.htp instead of on the operator: a
-#  Panel cannot draw operator properties, and these five fields are not worth
-#  maintaining twice.
+# one set of settings, TWO surfaces:
+# * File > Import > Source Engine Assets (.PCF)  -> pops it as a dialog
+# * 3D View sidebar > Particle Import            -> the same fields inline
+# That is why the settings live on scene.htp instead of on the operator: a
+# Panel cannot draw operator properties, and these five fields are not worth
+# maintaining twice
 #
-#  WHERE THINGS LAND
-#      __HoovyTools__ /  <system name> /  <the anchor empty>
-#  Every particle gets its OWN collection, because a system is never just one
-#  object - control points, emitters and helper empties all belong to it and
-#  need to move/hide/delete as a unit.
+# WHERE THINGS LAND
+# __HoovyTools__ /  <system name> /  <the anchor empty>
+# Every particle gets its OWN collection, because a system is never just one
+# object - control points, emitters and helper empties all belong to it and
+# need to move/hide/delete as a unit
 # =============================================================================
 
 import bpy
@@ -37,9 +37,9 @@ from ..icons import tab_items
 TAG = "[HT_PARTICLE]"
 ROOT_COLLECTION = "__HoovyTools__"
 
-# Parsed-file stash. Module level because Blender EnumProperty item callbacks
+# parsed-file stash. Module level because Blender EnumProperty item callbacks
 # must return a stable Python object (rebuild it per call and the strings get
-# garbage-collected mid-draw, which crashes Blender).
+# garbage-collected mid-draw, which crashes Blender)
 _STASH = {"path": "", "picker": [], "counts": {}, "enum_items": [],
           "hierarchy": None, "cp": {}}
 
@@ -49,7 +49,7 @@ _NO_SYSTEMS = [("__none__", "(no systems - pick a .pcf file)", "")]
 # factor you want when an SFM effect has to sit next to a real-scale model.
 SCALE_SOURCE = 0.01905
 
-# Editors whose horizontal axis IS time, so the mouse X maps to a frame.
+# editors whose horizontal axis IS time, so the mouse X maps to a frame
 _TIMELINE_AREAS = {"TIMELINE", "DOPESHEET_EDITOR", "GRAPH_EDITOR",
                    "NLA_EDITOR", "SEQUENCE_EDITOR"}
 
@@ -165,7 +165,7 @@ def _rebuild_enum_items():
 
 
 def _system_enum_items(self, context):
-    # Must return the SAME cached list object each call - never rebuild here.
+    # must return the same cached list object each call - never rebuild here
     return _STASH["enum_items"] or _NO_SYSTEMS
 
 
@@ -191,11 +191,11 @@ def _on_path_edited(self, context):
 
 
 # =============================================================================
-#  Settings live on the Scene so the panel and the dialog share them
+# Settings live on the Scene so the panel and the dialog share them
 # =============================================================================
 
-#  3.0.0: set while the playhead handler / a preset writes a field, so the field's own update can tell "you typed
-#  it" (switch the automatic off) from "it was set for you" (leave it on)
+# 3.0.0: set while the playhead handler / a preset writes a field, so the field's own update can tell "you typed
+# it" (switch the automatic off) from "it was set for you" (leave it on)
 _AUTO = {"on": False}
 
 
@@ -217,7 +217,7 @@ def blend_time_scale(scene):
 class HTP_Props(PropertyGroup):
     # NOTE: deliberately NO subtype="FILE_PATH". That subtype makes Blender
     # draw its own little folder button, which sat right next to our SFM-style
-    # "Browse..." and looked like a duplicated control.
+    # "Browse..." and looked like a duplicated control
     definition_file: StringProperty(
         name="Particle System Definition File",
         description="Path to the .pcf holding the particle system definitions",
@@ -285,7 +285,7 @@ class HTP_Props(PropertyGroup):
     active_tab: EnumProperty(
         name="Tab",
         items=tab_items,
-        # Dynamic enums require a numeric default; 0 is the existing Import ID.
+        # dynamic enums require a numeric default; 0 is the existing Import ID.
         default=0,
     )
     props_show_disabled: BoolProperty(
@@ -295,16 +295,16 @@ class HTP_Props(PropertyGroup):
                     "this reveals the full catalogue",
         default=False,
     )
-    #  Blender keeps a collapsible panel's open/closed state per idname and
-    #  offers no API to close one - so "Minimize All" bumps this generation
-    #  counter instead: fresh idnames, fresh (closed) defaults. Hidden,
-    #  because it is a mechanism, not a setting.
+    # Blender keeps a collapsible panel's open/closed state per idname and
+    # offers no API to close one - so "Minimize All" bumps this generation
+    # counter instead: fresh idnames, fresh (closed) defaults. Hidden,
+    # because it's a mechanism, not a setting
     props_fold_gen: IntProperty(default=0, options={"HIDDEN"})
-    #  `vtf_preview_sphere` USED TO LIVE HERE as a panel checkbox you had to
-    #  find and set BEFORE pressing Import. It is a choice about the import
-    #  you are making right now, so it is now a property of the import
-    #  operators themselves and appears in the file browser, next to the file
-    #  it applies to.
+    # `vtf_preview_sphere` USED TO LIVE HERE as a panel checkbox you had to
+    # find and set BEFORE pressing Import. It is a choice about the import
+    # you are making right now, so it is now a property of the import
+    # operators themselves and appears in the file browser, next to the file
+    # it applies to
 
 
 def props(context):
@@ -341,7 +341,7 @@ def draw_import_ui(layout, context, compact=False, in_dialog=False):
     if compact:
         row = col.row(align=True)
         row.prop(p, "start_time")
-        #  the clock IS the switch: on, Start Time follows the playhead while you scrub
+        # the clock is the switch: on, Start Time follows the playhead while you scrub
         row.prop(p, "follow_playhead", text="", icon="TIME", toggle=True)
         col.prop(p, "emission_duration")
         col.prop(p, "lifetime")
@@ -369,8 +369,8 @@ def draw_import_ui(layout, context, compact=False, in_dialog=False):
     src.value = SCALE_SOURCE
     col.prop(p, "scale", text="")
     col.separator()
-    #  Time Scale: Match .blend (the default - fps / 24, read at build time) or a preset "my scene runs at N FPS",
-    #  each FPS / 24 because SFM's timeline is 24 FPS. The field takes any value by hand.
+    # Time Scale: Match .blend (the default - fps / 24, read at build time) or a preset "my scene runs at N FPS",
+    # each FPS / 24 because SFM's timeline is 24 FPS. The field takes any value by hand.
     col.label(text="Time Scale:")
     split = col.split(factor=0.5, align=True)
     m = split.operator(HTP_OT_SetTimeScale.bl_idname, text="Match .blend", depress=p.match_blend)
@@ -383,8 +383,8 @@ def draw_import_ui(layout, context, compact=False, in_dialog=False):
         b.value = v
     col.prop(p, "time_scale", text="")
 
-    #  THE BUTTON THAT BUILDS IT - big, with its own icon (3.0.0). NOT IN THE DIALOG: the dialog's confirm button
-    #  is "Build This System" already.
+    # THE BUTTON THAT BUILDS IT - big, with its own icon (3.0.0). NOT IN THE DIALOG: the dialog's confirm button
+    # is "Build This System" already
     if not in_dialog:
         row = layout.row()
         row.scale_y = 2.2
@@ -395,7 +395,7 @@ def draw_import_ui(layout, context, compact=False, in_dialog=False):
 
 
 # =============================================================================
-#  Placing the system
+# Placing the system
 # =============================================================================
 
 def set_system_socket(obj, socket_name, value):
@@ -453,17 +453,17 @@ def particle_collection(context, system_name):
 
 
 # =============================================================================
-#  BUILDING WHAT WAS PARSED
+# building what was parsed
 # =============================================================================
 #
-#  ONE OBJECT PER SYSTEM, parent first, children pointed at it.
+# one OBJECT PER SYSTEM, parent first, children pointed at it
 #
-#  🔴 DEPENDENCIES RUN PARENT -> CHILD AND NEVER BACK. A child reads its
-#  parent's particles through Object Info, which makes the depsgraph evaluate
-#  the parent first for free. A parent reading a child would be a CYCLE, and
-#  Blender answers a cycle with empty geometry and no error worth the name.
+# 🔴 DEPENDENCIES RUN PARENT -> CHILD and NEVER BACK. A child reads its
+# parent's particles through Object Info, which makes the depsgraph evaluate
+# the parent first for free. A parent reading a child would be a CYCLE, and
+# Blender answers a cycle with empty geometry and no error worth the name.
 #
-#  Depth-first, so the parent object exists before anything points at it.
+# Depth-first, so the parent object exists before anything points at it.
 
 def _material_roots():
     """Every `materials` folder worth looking in, most specific first."""
@@ -479,17 +479,17 @@ def _material_roots():
     return roots
 
 
-#  BUNDLED FALLBACK MATERIALS - "usable particles when a material fucks up".
-#  A system whose material is AUTHORED but does not resolve on this machine
-#  (missing .vmt, missing .vtf - somebody else's pack, an unmounted game) used
-#  to become an invisible driver: correct motion, nothing to look at. These
-#  three generics ship inside the add-on (~140 KB) so that case draws
-#  SOMETHING plausible instead - per renderer:
-#      animated sprites -> glow_a          (soft additive glow)
-#      sprite trail     -> __sparks_hd_a   (spark streak sheet)
-#      rope             -> beam_b/beam_bm  (additive beam)
-#  A system with NO material at all keeps the invisible driver: SFM draws
-#  nothing for those on purpose (they are motion carriers for children).
+# BUNDLED FALLBACK MATERIALS - "usable particles when a material fucks up"
+# A system whose material is AUTHORED but doesn't resolve on this machine
+# (missing .vmt, missing .vtf - somebody else's pack, an unmounted game) used
+# to become an invisible driver: correct motion, nothing to look at. These
+# three generics ship inside the add-on (~140 KB) so that case draws
+# SOMETHING plausible instead - per renderer:
+# animated sprites -> glow_a          (soft additive glow)
+# sprite trail     -> __sparks_hd_a   (spark streak sheet)
+# rope             -> beam_b/beam_bm  (additive beam)
+# A system with NO material at all keeps the invisible driver: SFM draws
+# nothing for those on purpose (they are motion carriers for children)
 _FALLBACK_VMT = {"ANIMATED_SPRITES": "glow_a.vmt",
                  "SPRITE_TRAIL": "__sparks_hd_a.vmt",
                  "ROPE": "beam_b.vmt"}
@@ -588,8 +588,8 @@ def sprite_material_users(name, hierarchy, counts=None, path=()):
 
 
 # (Set Control Point Positions is handled PER SYSTEM inside
-#  build_system_tree - each authoring system gets its own override empties,
-#  because sibling systems legally author DIFFERENT offsets for the same CP.)
+# build_system_tree - each authoring system gets its own override empties,
+# because sibling systems legally author DIFFERENT offsets for the same CP.)
 
 
 def build_system_tree(context, name, hierarchy, parent_host=None,
@@ -610,11 +610,11 @@ def build_system_tree(context, name, hierarchy, parent_host=None,
     log = log if log is not None else []
     used = used if used is not None else {}
 
-    #  WHAT THIS INSTANCE IS CALLED, as opposed to what the DEFINITION is
-    #  called. Everything this add-on re-finds by name is built from `prefix`,
-    #  so two instances of one definition cannot land on each other's objects.
-    #  See api.build_effect's note - a post-hoc rename cannot fix this,
-    #  because each lookup happens at its own moment inside the build.
+    # WHAT THIS INSTANCE IS CALLED, as opposed to what the DEFINITION is
+    # called. Everything this add-on re-finds by name is built from `prefix`,
+    # so two instances of one definition cannot land on each other's objects
+    # See api.build_effect's note - a post-hoc rename can't fix this,
+    # because each lookup happens at its own moment inside the build
     prefix = name_prefix or name
     sysdef = hierarchy["systems"].get(name)
     if sysdef is None:
@@ -625,9 +625,9 @@ def build_system_tree(context, name, hierarchy, parent_host=None,
     if mat_users is None:
         mat_users = sprite_material_users(name, hierarchy)
 
-    # ── THE EFFECT'S ONE CONTROL EMPTY AND ONE SET OF CONTROL POINTS ─────
-    #  Made here, at the top of the recursion, and handed to every system
-    #  below. See tools/control_points.py for why this is not per system.
+    # ── the effect's one control empty and one set of control points ─────
+    # Made here, at the top of the recursion, and handed to every system
+    # below. See tools/control_points.py for why this isn't per system
     if root is None:
         cp_count, cp_used = subtree_control_points(name, hierarchy)
         root = control_points.effect_root(
@@ -649,25 +649,25 @@ def build_system_tree(context, name, hierarchy, parent_host=None,
         progress.update(_BUILD["i"], max(_BUILD["n"], _BUILD["i"]), item=unique)
     except Exception:
         pass
-    #  Per-system objects are re-found by name too (container anchors, control
-    #  point overrides). Namespace them to the instance for the same reason.
+    # per-system objects are re-found by name too (container anchors, control
+    # point overrides). Namespace them to the instance for the same reason.
     uname = unique if not name_prefix else f"{name_prefix} · {unique}"
 
     plan = pcf_build.plan(sysdef)
     log.extend(pcf_build.describe_plan(("  " * depth) + unique, plan))
 
-    # ── Set Control Point Positions, PER SYSTEM ──────────────────────────
-    #  🔴 IN SFM EVERY SYSTEM OWNS ITS OWN CONTROL POINT ARRAY, and this
-    #  operator re-asserts offsets into it constantly - it is how the
-    #  cinematic smoke places five puffs: each SIBLING system authors
-    #  DIFFERENT CP1..CP3 offsets. One shared set per effect cannot hold
-    #  five different CP1s (first-wins collapsed all the puffs onto one
-    #  arrangement), so a system that authors placements gets its OWN
-    #  override empties for exactly those indices. They are parented to
-    #  the effect root, so "track an offset from the parent CP" happens by
-    #  construction - move the effect and they come along - and they stay
-    #  yours to grab or animate. Children inherit the overridden array,
-    #  which is SFM's parent -> child CP propagation.
+    #── Set Control Point Positions, PER SYSTEM ──────────────────────────
+    #🔴 in SFM every SYSTEM OWNS its own CONTROL POINT ARRAY, and this
+    #operator re-asserts offsets into it constantly - it is how the
+    #cinematic smoke places five puffs: each SIBLING system authors
+    #DIFFERENT CP1..CP3 offsets. One shared set per effect can't hold
+    #five different CP1s (first-wins collapsed all the puffs onto one
+    #arrangement), so a system that authors placements gets its own
+    #override empties for exactly those indices. They are parented to
+    #the effect root, so "track an offset from the parent CP" happens by
+    #construction - move the effect and they come along - and they stay
+    #yours to grab or animate. Children inherit the overridden array,
+    #which is SFM's parent -> child CP propagation.
     placements = plan.get("cp_placements") or {}
     cp_head, cp_world = plan.get("cp_frame") or (0, False)
     my_cps = cps
@@ -690,7 +690,7 @@ def build_system_tree(context, name, hierarchy, parent_host=None,
                     c.objects.unlink(em)
                 collection.objects.link(em)
             if root is not None:
-                # 🔴 0.26.3: THE OFFSETS ARE IN THE HEAD CONTROL POINT'S FRAME.
+                # 🔴 0.26.3: the offsets are in the head control point's frame.
                 # Source transforms them by that CP's matrix, so a beam's far
                 # end turns with CP0 - parked under the effect's TRANSFORM,
                 # the oscillator jet's glow beam ran sideways the moment the
@@ -716,7 +716,7 @@ def build_system_tree(context, name, hierarchy, parent_host=None,
     cps = my_cps
 
     # A container holds children and draws nothing. Give it an anchor empty so
-    # the children have something to hang off, and move on.
+    # the children have something to hang off, and move on
     if plan.get("container"):
         anchor = bpy.data.objects.get(uname)
         if anchor is None or anchor.type != "EMPTY":
@@ -741,7 +741,7 @@ def build_system_tree(context, name, hierarchy, parent_host=None,
                               name_prefix=name_prefix, mat_users=mat_users)
         return made, log
 
-    # material -> .vmt -> $basetexture -> .vtf
+    #material -> .vmt -> $basetexture -> .vtf
     chain = {"vtf": None, "shader": "", "values": {}}
     if plan["material"]:
         chain = vmt_tool.resolve(plan["material"], _material_roots())
@@ -755,15 +755,15 @@ def build_system_tree(context, name, hierarchy, parent_host=None,
             log.append(f"      texture       {chain['vtf'].name}  "
                        f"(shader {chain['shader']}, overbright "
                        f"{vmt_tool.overbright(chain['values']):g})")
-    # A system whose texture does not resolve is NO LONGER skipped - the old
-    # early return dropped its whole child subtree with it (a material-less
-    # "circling" driver took its beam child down; one missing .vtf erased a
-    # whole fire layer). Two cases now:
-    #   - material AUTHORED but broken on this machine -> a bundled FALLBACK
-    #     generic (glow / spark sheet / beam, by renderer), so the user gets
-    #     usable particles instead of holes;
-    #   - NO material authored -> an INVISIBLE DRIVER (SFM draws nothing for
-    #     those on purpose - they are motion carriers), children still ride.
+    #A system whose texture does not resolve is no LONGER skipped - the old
+    #early return dropped its whole child subtree with it (a material-less
+    #"circling" driver took its beam child down; one missing .vtf erased a
+    #whole fire layer). Two cases now:
+    #- material AUTHORED but broken on this machine -> a bundled FALLBACK
+    #generic (glow / spark sheet / beam, by renderer), so the user gets
+    #usable particles instead of holes;
+    #- NO material authored -> an INVISIBLE DRIVER (SFM draws nothing for
+    #those on purpose - they are motion carriers), children still ride.
     driver = False
     if chain["vtf"] is None:
         if plan["material"]:
@@ -782,10 +782,10 @@ def build_system_tree(context, name, hierarchy, parent_host=None,
             log.append("      DRIVER (no material - a motion carrier); "
                        "invisible, children ride it")
 
-    # 0.24.2: A SPRITECARD MATERIAL ON A TRAIL DRAWS NOTHING IN SFM - measured
+    # 0.24.2: A SPRITECARD MATERIAL ON A TRAIL DRAWS nothing IN SFM - measured
     # twice (calibration kits 2 and 4: blend, $additive and $addoverblend on
     # flat and ramp textures, not one pixel, while UnlitGeneric trails beside
-    # them drew). Built as an invisible driver, so its children still ride it.
+    # them drew). Built as an invisible driver, so its children still ride it
     if not driver and (plan.get("renderer") or "").upper() == "SPRITE_TRAIL" \
             and str(chain.get("shader") or "").strip().lower() == "spritecard":
         driver = True
@@ -803,7 +803,7 @@ def build_system_tree(context, name, hierarchy, parent_host=None,
                    f"{warp['refract_amount']:g}, $bluramount "
                    f"{warp['blur_amount']:g}")
 
-    # 0.24.2: TWO DRAWS ONLY FOR A SHARED SPRITE MATERIAL (measured).
+    #0.24.2: TWO DRAWS ONLY FOR A SHARED SPRITE MATERIAL (measured)
     n_draws = 1
     if (plan.get("renderer") or "").upper() == "ANIMATED_SPRITES" \
             and plan["material"]:
@@ -819,10 +819,10 @@ def build_system_tree(context, name, hierarchy, parent_host=None,
             emitter="SIMULATION", renderer=plan["renderer"],
             cp_count=plan["cp_count"], stack=plan["stack"],
             parent=parent_host,
-            # The SFM system name, NAMESPACED TO THIS INSTANCE.
+            # The SFM system name, NAMESPACED TO this INSTANCE.
             #
             # `unique` alone is unique within one .pcf - which is all it
-            # needed to be while one effect was built at a time. It is NOT
+            # needed to be while one effect was built at a time. It is not
             # unique across two INSTANCES of the same effect, and build_ras
             # re-finds its host by this name (see its own comment a few lines
             # above the lookup). So the second fire found the first fire's
@@ -832,7 +832,7 @@ def build_system_tree(context, name, hierarchy, parent_host=None,
             #
             # Same failure the comment at that lookup already describes for
             # siblings, one level up - across instances rather than within
-            # a file.
+            # a file
             host_name=uname,
             overbright=vmt_tool.overbright(chain["values"]),
             additive=vmt_tool.is_additive(chain["values"]),
@@ -857,10 +857,10 @@ def build_system_tree(context, name, hierarchy, parent_host=None,
         for c in list(host.users_collection):
             c.objects.unlink(host)
         collection.objects.link(host)
-    #  THE OUTLINER MIRRORS THE SFM TREE. A child system's mesh is parented
-    #  to its parent's mesh (everything sits at the shared origin, so this
-    #  changes structure, not transforms) - the effect reads as the
-    #  hierarchy it actually is instead of a flat pile under the root.
+    # the OUTLINER MIRRORS the SFM TREE. A child system's mesh is parented
+    # to its parent's mesh (everything sits at the shared origin, so this
+    # changes structure, not transforms) - the effect reads as the
+    # hierarchy it actually is instead of a flat pile under the root
     if outline_parent is not None:
         control_points.attach(host, outline_parent)
 
@@ -1011,11 +1011,11 @@ THIS FEATURE WAS ADDED IN VERSION 3.0.0 AND IS IN EXPERIMENTAL STAGE"""
                                                                              len(problems)),
                         ["file    : %s" % pcf_file] + problems[:20], pcf=pcf_file)
 
-        #  THE DIALOG'S START TIME FINALLY DRIVES SOMETHING: it lands on
-        #  every system's "Time Offset" socket, so the whole effect begins
-        #  at that second of the scene - at any frame rate, since the graph
-        #  runs on Scene Time's seconds. It stays editable per system in
-        #  the modifier's SYSTEM PROPERTIES afterwards.
+        # the DIALOG'S START TIME FINALLY DRIVES SOMETHING: it lands on
+        # every system's "Time Offset" socket, so the whole effect begins
+        # at that second of the scene - at any frame rate, since the graph
+        # runs on Scene Time's secs. It stays editable per system in
+        # the modifier's SYSTEM PROPERTIES afterwards
         if p.start_time:
             n_set = sum(1 for o in made
                         if set_system_socket(o, "Time Offset",
@@ -1042,7 +1042,7 @@ THIS FEATURE WAS ADDED IN VERSION 3.0.0 AND IS IN EXPERIMENTAL STAGE"""
             _tell(context, "Particle imported, camera created",
                   ["'%s' is in the scene." % p.system, cam_note])
         if dropped:
-            # Say it out loud. An import that quietly drops a third of the
+            # say it out loud. An import that quietly drops a third of the
             # authoring looks identical to one that worked.
             self.report({"WARNING"},
                         msg + f" · {dropped} attributes NOT translated "
@@ -1113,7 +1113,7 @@ under the modifier's SYSTEM PROPERTIES"""
     def execute(self, context):
         p = props(context)
         if p is not None and self.value < 0:
-            #  3.0.0: Match .blend
+            # 3.0.0: Match .blend
             _AUTO["on"] = True
             try:
                 p.match_blend = True
@@ -1175,7 +1175,7 @@ builds the identical effect"""
         if p is not None:
             # Start Time follows the MOUSE: hover a timeline / dope sheet /
             # graph editor when you trigger the import and the effect starts
-            # exactly there. Pointer anywhere else -> 0, and you type your own.
+            # exactly there. Pointer anywhere else -> 0, and you type your own
             frame = frame_under_mouse(context, event)
             if frame is None:
                 p.start_time = 0.0
@@ -1190,10 +1190,10 @@ builds the identical effect"""
         draw_import_ui(self.layout, context, in_dialog=True)
 
     def execute(self, context):
-        #  THE DIALOG'S CONFIRM RUNS THE REAL BUILD. This used to place a bare
-        #  anchor empty instead - a leftover from before the builder existed -
-        #  and it crashed the moment control_points.spawn() changed signature.
-        #  One button label, one behaviour: "Build This System" builds it.
+        #the DIALOG'S CONFIRM RUNS the REAL BUILD. This used to place a bare
+        #anchor empty instead - a leftover from before the builder existed -
+        #and it crashed the moment control_points.spawn() changed signature
+        #One button label, one behaviour: "Build This System" builds it.
         return bpy.ops.htp.build_particle_system("EXEC_DEFAULT")
 
 
@@ -1238,14 +1238,14 @@ browser"""
 
 
 def menu_func(self, context):
-    #  Straight into the FILE BROWSER, like every other File > Import entry.
-    #  It used to open the settings dialog first - whose only useful button at
-    #  that point was Browse - then close it for the browser, then re-open it:
-    #  three windows for one decision. Now the browser comes first and the
-    #  settings dialog appears ONCE, already loaded with the picked .pcf.
-    #  (The sidebar flow is unchanged - it has no dialog to juggle.)
-    #  The crowbar is HoovyTools' own Source Engine icon, so the two add-ons
-    #  read as one family in this menu.
+    # straight into the FILE BROWSER, like every other File > Import entry.
+    # It used to open the settings dialog first - whose only useful button at
+    # that point was Browse - then close it for the browser, then re-open it:
+    # three windows for one decision. Now the browser comes first and the
+    # settings dialog appears ONCE, already loaded with the picked .pcf
+    # (The sidebar flow is unchanged - it has no dialog to juggle.)
+    # The crowbar is HoovyTools' own Source Engine icon, so the two add-ons
+    # read as one family in this menu
     from ..icons import icon_id
     op = self.layout.operator(HTP_OT_BrowsePCF.bl_idname,
                               text="Source Engine (.pcf)",

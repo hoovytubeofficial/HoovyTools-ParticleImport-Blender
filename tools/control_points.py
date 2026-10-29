@@ -1,91 +1,91 @@
 ﻿# =============================================================================
-#  tools/control_points.py  -  one way to spawn control points, for everybody
+# tools/control_points.py  -  one way to spawn control points, for everybody
 # =============================================================================
 #
-#  WHY THIS EXISTS
+# why this exists
 #  ---------------
-#  A Source effect is defined relative to numbered transforms - control points.
-#  Every part of this add-on that puts an effect in a scene needs to create
-#  them, and until now each part invented its own four.
+# A Source effect is defined relative to numbered transforms - control points
+# Every part of this add-on that puts an effect in a scene needs to create
+# them, and until now each part invented its own four.
 #
-#  FOUR IS THE WRONG NUMBER, and the corpus says so plainly. Surveying all 97
-#  TF2 packs (see `__ForYou/PCF Corpus Survey.txt`, CONTROL POINTS section):
+# FOUR is the WRONG NUMBER, and the corpus says so plainly. Surveying all 97
+# TF2 packs (see `__ForYou/PCF Corpus Survey.txt`, CONTROL POINTS section):
 #
-#      1 CP   2917 systems        6 CP      6 systems
-#      2 CP    279 systems        8 CP      9 systems
-#      3 CP     40 systems       10 CP    126 systems
-#      4 CP     46 systems       11 CP     46 systems
-#      5 CP     97 systems       35 CP      4 systems
-#                                41 CP      4 systems
+# 1 CP   2917 systems        6 CP      6 systems
+# 2 CP    279 systems        8 CP      9 systems
+# 3 CP     40 systems       10 CP    126 systems
+# 4 CP     46 systems       11 CP     46 systems
+# 5 CP     97 systems       35 CP      4 systems
+# 41 CP      4 systems
 #
-#  The tail is small but it is REAL - taunt_fx.pcf::taunt_demo_nuke_shroom4_base
-#  wants forty-one. An importer that always makes four is wrong for 8% of TF2
-#  and silently drops every reference above CP3 on the floor.
+# The tail is small but it's REAL - taunt_fx.pcf::taunt_demo_nuke_shroom4_base
+# wants forty-one. An importer that always makes four is wrong for 8% of TF2
+# and silently drops every reference above CP3 on the floor
 #
-#  So: the count comes from the FILE (tools/pcf.py::get_control_points), the
-#  empties come from here, and the node graph is generated for that many.
+# So: the count comes from the FILE (tools/pcf.py::get_control_points), the
+# empties come from here, and the node graph is generated for that many
 #
-#  WHAT THIS MODULE DECIDES
-#    * how many is sane          (MAX_CONTROL_POINTS)
-#    * where the empties go      (cp_location - a row that wraps, not a line
-#                                 41 units long you have to zoom out to see)
-#    * what they look like       (CP0 is ARROWS and bigger; it is the one
-#                                 almost every operator actually reads)
-#    * who they belong to        (parented to the host - see below)
+# WHAT THIS MODULE DECIDES
+# * how many is sane          (MAX_CONTROL_POINTS)
+# * where the empties go      (cp_location - a row that wraps, not a line
+# 41 units long you have to zoom out to see)
+# * what they look like       (CP0 is ARROWS and bigger; it's the one
+# almost every operator actually reads)
+# * who they belong to        (parented to the host - see below)
 #
-#  🔴 ONE SET OF EMPTIES PER EFFECT, NOT PER SYSTEM.
-#  A control point is a property of the EFFECT, not of one system inside it -
-#  in SFM a parent and its children all read CP0, and it is the same CP0. Every
-#  system spawning its own meant a five-system effect arrived as five stacks of
-#  empties that all had to be dragged together to move anything, and nothing in
-#  the outliner said which stack mattered. Now the effect gets ONE control
-#  empty, the systems hang off it, and the control points hang off it too -
-#  counted ONCE, as the highest number any system in the tree asked for.
+# 🔴 one set of empties per effect, not per system.
+# A control point is a property of the EFFECT, not of one system inside it -
+# in SFM a parent and its children all read CP0, and it is the same CP0. Every
+# system spawning its own meant a five-system effect arrived as five stacks of
+# empties that all had to be dragged together to move anything, and nothing in
+# the outliner said which stack mattered. Now the effect gets one control
+# empty, the systems hang off it, and the control points hang off it too -
+# counted ONCE, as the highest number any system in the tree asked for
 #
-#      <effect> · CONTROL          the whole effect's transform
-#        ├── <system>              the mesh carrying the geometry nodes
-#        ├── <system>-child        ... one per system, all at the origin
-#        └── <effect> · CP0..CPn   shared by every system above
+# <effect> · CONTROL          the whole effect's transform
+# ├── <system>              the mesh carrying the geometry nodes
+# ├── <system>-child        ... one per system, all at the origin
+# └── <effect> · CP0..CPn   shared by every system above
 #
-#  🔴 THE EMPTIES ARE PARENTED, and that is load-bearing. Object Info reads
-#  control points in RELATIVE space, i.e. measured in the reading system's
-#  frame. With the empties unparented, moving the effect moves the frame but
-#  not the empties, so it slides the OTHER WAY and stays pinned to the world
-#  origin. Parented to the control empty - with every host sitting at that same
-#  origin - "relative" is a constant, and dragging the control empty takes the
-#  whole effect with it.
+# 🔴 THE EMPTIES are PARENTED, and that's load-bearing. Object Info reads
+# control points in RELATIVE space, i.e. measured in the reading system's
+# frame. With the empties unparented, moving the effect moves the frame but
+# not the empties, so it slides the OTHER WAY and stays pinned to the world
+# origin. Parented to the control empty - with every host sitting at that same
+# origin - "relative" is a constant, and dragging the control empty takes the
+# whole effect with it
 # =============================================================================
 
 import bpy
 
 
-# Sixty-four, not forty-one: the corpus is the evidence for the tail, not a
+# sixty-four, not forty-one: the corpus is the evidence for the tail, not a
 # guarantee that nobody has ever authored more. It is a guard against a
 # corrupt file asking for four billion empties, not a statement about SFM.
 MAX_CONTROL_POINTS = 64
 
-# 🔴 ZERO ON PURPOSE: EVERY CONTROL POINT STARTS ON THE HOST, at 0,0,0 in its
-# own space. Fanning them out in a row is tidier in the outliner and wrong
-# everywhere else - SFM puts a control point where the effect needs it, and an
-# empty parked 32 units away that nobody moved is a lie about the effect. They
-# start together and you drag out the ones that matter.
+#🔴 ZERO ON PURPOSE: EVERY CONTROL POINT STARTS ON the HOST, at 0,0,0 in its
+#own space. Fanning them out in a row is tidier in the outliner and wrong
+#everywhere else - SFM puts a control point where the effect needs it, and an
+#empty parked 32 units away that nobody moved is a lie about the effect. They
+#start together and you drag out the ones that matter
 #
-# Set a spread if you want them laid out to grab: `spawn(..., spread=16)` puts
-# them one Hammer grid square apart, in rows of eight.
+#Set a spread if you want them laid out to grab: `spawn(..., spread=16)` puts
+#them one Hammer grid square apart, in rows of eight.
 DEFAULT_SPREAD = 0.0
 
-# How many go in a row before wrapping to the next one, when a spread is given.
+# how many go in a row before wrapping to the next one, when a spread is given
 ROW = 8
 
-# All at one point would be unclickable, so the crosses are NESTED instead -
-# each one a little smaller than the last. Same position, still tellable apart.
+#all at one point would be unclickable, so the crosses are NESTED instead -
+#each one a little smaller than the last. Same position, still tellable apart.
 ROOT_SIZE = 12.0
 STEP_SIZE = 8.0
 MIN_SIZE = 1.5
 
 
-#  The control empty is the thing a user actually grabs, so it is bigger than
-#  anything hanging off it and shaped like nothing else in the scene.
+# the control empty is the thing a user actually grabs, so it is bigger than
+# anything hanging off it and shaped like nothing else in the scene
 ROOT_EMPTY_SIZE = 24.0
 
 
@@ -115,9 +115,9 @@ def effect_root(name, collection=None, location=None):
     return obj
 
 
-#  The transform empty is what you grab to move EVERY control point at once,
-#  without moving the effect's origin. Distinct shape so it never reads as a
-#  control point itself.
+# the transform empty is what you grab to move every control point at once,
+# without moving the effect's origin. Distinct shape so it never reads as a
+# control point itself
 TRANSFORM_SIZE = 16.0
 
 
@@ -261,8 +261,8 @@ def spawn(prefix, count, root=None, collection=None,
     used = set(indices or range(count))
     out = []
 
-    #  Every control point hangs off the TRANSFORM empty, not the root
-    #  directly - one handle moves them all while the effect stays put.
+    # every control point hangs off the TRANSFORM empty, not the root
+    # directly - one handle moves them all while the effect stays put
     xform = transform_root(prefix, root, collection) if root is not None \
         else None
 
@@ -272,12 +272,12 @@ def spawn(prefix, count, root=None, collection=None,
         if cp is None:
             cp = bpy.data.objects.new(name, None)
         elif cp.type != "EMPTY":
-            # Something else already owns the name. Take a new one rather than
-            # quietly wiring the effect to a mesh someone was using.
+            # something else already owns the name. Take a new one rather than
+            # quietly wiring the effect to a mesh someone was using
             cp = bpy.data.objects.new(name, None)
 
-        # CP0 is the one nearly every operator reads, so it does not look like
-        # the other forty.
+        #CP0 is the one nearly every operator reads, so it doesn't look like
+        #the other forty
         cp.empty_display_type = "ARROWS" if i == 0 else "PLAIN_AXES"
         cp.empty_display_size = cp_display_size(i)
         cp.location = cp_location(i, spread)
@@ -291,14 +291,14 @@ def spawn(prefix, count, root=None, collection=None,
 
         if xform is not None and cp is not xform:
             cp.parent = xform
-            # The location above is already in the root's space (the
+            # the location above is already in the root's space (the
             # transform sits at the root's origin), so the parent inverse
             # must be identity - otherwise Blender bakes in whatever the
             # transform happened to be and CP0 stops sitting on it.
             cp.matrix_parent_inverse.identity()
 
         # AFTER parenting and placing, never before: a keyframe records the
-        # location as it is at the moment it is inserted.
+        # location as it's at the moment it's inserted
         if keyframe:
             key_at_rest(cp, frame=frame, rotation=keyframe_rotation)
 

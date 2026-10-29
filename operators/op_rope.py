@@ -1,14 +1,14 @@
 ﻿# =============================================================================
-#  operators/op_rope.py  -  Create Render Rope
+# operators/op_rope.py  -  Create Render Rope
 # =============================================================================
 #
-#  The same system as Render Animated Sprites - same emitter, same
-#  initializers, same operators - with the last step swapped: instead of one
-#  camera-facing card per particle, ONE CONTINUOUS RIBBON threaded through all
-#  of them, oldest to newest.
+# The same system as Render Animated Sprites - same emitter, same
+# initializers, same operators - with the last step swapped: instead of one
+# camera-facing card per particle, one CONTINUOUS RIBBON threaded through all
+# of them, oldest to newest
 #
-#  Pick the trail texture yourself; the browser opens where the trails
-#  actually live.
+# Pick the trail texture yourself; the browser opens where the trails
+# actually live
 # =============================================================================
 
 from pathlib import Path
@@ -26,13 +26,13 @@ from .op_ras import (build_ras, TAG, PARENT_PROP, draw_parent_picker,
                      resolve_parent)
 
 
-#  THE SFM STARTER LOOK - measured off a real hand-tuned trail setup, not
-#  invented. A bare rope with every operator at its neutral default is a
-#  straight dead ribbon; a real SFM trail is born on a flat disc, launched
-#  sideways, wanders under noise, shrinks and cools towards blue as it dies.
-#  These are the exact values of that reference setup, keyed by the same
-#  "Operator::Field" names `build_ras` already resolves, so Create Rope can
-#  stand one up out of the box. The toggle that applies them is `sfm_look`.
+# the SFM STARTER LOOK - measured off a real hand-tuned trail setup, not
+# invented. A bare rope with every operator at its neutral default is a
+# straight dead ribbon; a real SFM trail is born on a flat disc, launched
+# sideways, wanders under noise, shrinks and cools towards blue as it dies
+# These are the exact values of that reference setup, keyed by the same
+# "Operator::Field" names `build_ras` already resolves, so Create Rope can
+# stand one up out of the box. The toggle that applies them is `sfm_look`.
 SFM_LOOK = {
     # launch: sideways out of the control point's own frame
     "Velocity Random": True,
@@ -43,7 +43,7 @@ SFM_LOOK = {
     "Velocity Noise::Output Max": (25.0, 25.0, 0.0),
     "random force": True,
     "random force::Max Force": (5.0, 5.0, 5.0),
-    # herding: drawn towards CP1, so dragging that empty shapes the trail
+    #herding: drawn towards CP1, so dragging that empty shapes the trail
     "Pull towards control point": True,
     "Pull towards control point::Amount": 5.0,
     "Pull towards control point::Control Point": 1,
@@ -87,7 +87,7 @@ for the neutral build."""
     bl_options = {"REGISTER", "UNDO"}
 
     # A beam is the case that needs this most: beam materials are authored
-    # additive at overbright 15, and a .vtf on its own cannot say so.
+    # additive at overbright 15, and a .vtf on its own can't say so
     filename_ext = ".vmt"
     filter_glob: StringProperty(default="*.vmt;*.vtf", options={"HIDDEN"})
 
@@ -235,8 +235,8 @@ for the neutral build."""
             "Scale": 1.0,
         }
         if self.sfm_look:
-            #  The starter look's radius runs 0..Radius rather than a uniform
-            #  width - a trail thickens as it lives, so its spine tapers.
+            # the starter look's radius runs 0..Radius rather than a uniform
+            # width - a trail thickens as it lives, so its spine tapers
             values["Radius Min"] = 0.0
             values.update(SFM_LOOK)
         parent, err = resolve_parent(self)
@@ -258,7 +258,7 @@ for the neutral build."""
             print(f"{TAG}  ROPE FAILED for {path.name}: {exc}")
             return {"CANCELLED"}
 
-        # Half Width is not an SFM field, so it is not in the spec table and
+        # Half Width isn't an SFM field, so it isn't in the spec table and
         # has to be set by its own socket name.
         from ..tools import ras_system
         from .op_ras import _set_input
@@ -272,9 +272,9 @@ for the neutral build."""
                f"{self.subdivision_count} subdivisions -> {host.name} "
                f"· play from frame 1")
         if abs(self.gravity) < 1e-6:
-            # Never let this fail silently: a rope whose particles do not move
+            # never let this fail silently: a rope whose particles do not move
             # is a zero-length ribbon, and that is indistinguishable from a
-            # broken material at a glance.
+            # broken material at a glance
             self.report({"WARNING"}, msg + " · GRAVITY IS 0, so the rope has "
                         "no length unless you animate a control point")
         else:

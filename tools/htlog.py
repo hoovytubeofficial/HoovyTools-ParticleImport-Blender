@@ -89,8 +89,8 @@ def _log_write(text):
         pass
 
 
-#  Set from the preferences (op_prefs pushes it on register and on every change) - print can be called from the
-#  preview workers' reader threads, where reading bpy is not safe.
+#set from the preferences (op_prefs pushes it on register and on every change) - print can be called from the
+#preview workers' reader threads, where reading bpy isn't safe
 SETTINGS = {"log_to_file": True}
 
 
@@ -98,7 +98,7 @@ def _log_enabled():
     return bool(SETTINGS.get("log_to_file", True))
 
 
-# ── the print wrapper ─────────────────────────────────────────────────────
+#── the print wrapper ─────────────────────────────────────────────────────
 
 def _consoles():
     global _CONSOLES

@@ -1,8 +1,8 @@
 # =============================================================================
-#  tools/ras_ops.py  -  more SFM operators, and the SFM -> Blender unit bridge
+# tools/ras_ops.py  -  more SFM operators, and the SFM -> Blender unit bridge
 # =============================================================================
 #
-#  Split out of ras_nodes.py so that file stays readable. Same DSL, same rules.
+# Split out of ras_nodes.py so that file stays readable. Same DSL, same rules
 # =============================================================================
 
 from .sprite_nodes import _group, _sock, _nd, _lk, _sv, note
@@ -10,20 +10,20 @@ from .ras_nodes import _io, _gin, EPS
 
 
 # =============================================================================
-#  WHAT NEEDS SCALING  -  the SFM -> Blender unit bridge
+# what NEEDS SCALING  -  the SFM -> Blender unit bridge
 # =============================================================================
 #
-#  Source authors everything in Hammer units. Anything that is a DISTANCE, a
-#  SPEED (distance per second) or a FORCE (distance per second squared) must be
-#  multiplied by Scale on the way in. Anything that is a time, a count, an
-#  angle, a colour or a normalised 0..1 factor must NOT be.
+# Source authors everything in Hammer units. Anything that's a DISTANCE, a
+# SPEED (distance per second) or a FORCE (distance per second squared) must be
+# multiplied by Scale on the way in. Anything that's a time, a count, an
+# angle, a colour or a normalised 0..1 factor must NOT be
 #
-#  Keyed by SFM functionName exactly as it appears in a .pcf, so the importer
-#  can consult this table directly once it starts reading real effects.
+# Keyed by SFM functionName exactly as it appears in a .pcf, so the importer
+# can consult this table directly once it starts reading real effects
 # =============================================================================
 
 OPERATOR_SCALE_MAP = {
-    # ── randomness / emission ────────────────────────────────────────────
+    #── randomness / emission ────────────────────────────────────────────
     "radius random": ["radius_min", "radius_max"],
     "velocity random": [
         "speed_min", "speed_max",
@@ -43,9 +43,9 @@ OPERATOR_SCALE_MAP = {
         "max distance", "min distance", "amount of force",
     ],
     # ── spatial constraints ──────────────────────────────────────────────
-    #  ⚠️ "constrain", not "constraint" - the old key here had a stray T and
-    #  matched NOTHING in any real file (grepped the corpus: the exact
-    #  functionName is "Constrain distance to control point").
+    # ⚠️ "constrain", not "constraint" - the old key here had a stray T and
+    # matched nothing in any real file (grepped the corpus: the exact
+    # functionName is "Constrain distance to control point").
     "constrain distance to control point": [
         "maximum distance", "minimum distance", "offset of center",
     ],
@@ -61,15 +61,15 @@ OPERATOR_SCALE_MAP = {
         "speed_in_local_coordinate_system_max",
     ],
     # `bulge` is a DISTANCE, not a fraction of the path - the corpus runs
-    # -2 to 75 across 3874 uses, and a fraction would make 75 meaningless.
+    # -2 to 75 across 3874 uses, and a fraction would make 75 meaningless
     "position along path sequential": ["bulge", "maximum distance"],
-    #  random bulge is NOT here: it is a fraction of the path's own length,
-    #  not a Hammer-unit distance - scaling it twice would square the scale.
+    # random bulge is NOT here: it's a fraction of the path's own length,
+    # not a Hammer-unit distance - scaling it twice would square the scale.
     "constrain distance to path between two control points": [
         "minimum distance", "maximum distance",
         "maximum distance middle", "maximum distance end",
     ],
-    # ── control-point driven ─────────────────────────────────────────────
+    #── control-point driven ─────────────────────────────────────────────
     "set control point positions": [
         "first control point location", "second control point location",
         "third control point location", "fourth control point location",
@@ -83,7 +83,7 @@ def scaled_fields(function_name):
 
 
 # =============================================================================
-#  OPERATOR  ·  Alpha Fade In / Out Random
+# OPERATOR  ·  Alpha Fade In / Out Random
 # =============================================================================
 
 def _fade_group(name, label, is_in, salt):
@@ -234,7 +234,7 @@ def build_alpha_fade_out():
 
 
 # =============================================================================
-#  INITIALIZER  ·  Velocity Random
+# INITIALIZER  ·  Velocity Random
 # =============================================================================
 
 def build_velocity_random():
@@ -333,7 +333,7 @@ need that treatment.
 
 
 # =============================================================================
-#  OPERATOR  ·  Movement Basic  (the global force step)
+# OPERATOR  ·  Movement Basic  (the global force step)
 # =============================================================================
 
 SOURCE_DRAG_HZ = 30.0
@@ -399,14 +399,14 @@ def build_movement_basic():
     _sock(ng, "Offset", "OUTPUT", "NodeSocketVector")
     # The DERIVATIVE of that offset, handed out so a CHILD system can inherit
     # its parent's motion. It is the same closed form differentiated, not a
-    # finite difference between frames - so it is exact and costs six nodes:
+    # finite difference between frames - so it's exact and costs six nodes:
     #
-    #     drag     v = v0 e^-kt  +  g (1 - e^-kt)/k     ->  g/k, terminal
-    #     no drag  v = v0 + g t                             plain ballistics
+    # drag     v = v0 e^-kt  +  g (1 - e^-kt)/k     ->  g/k, terminal
+    # no drag  v = v0 + g t                             plain ballistics
     #
     # Both pieces already exist above for the position; this only recombines
-    # them. It does NOT include the integrated force correction (Pull towards
-    # control point, twist around axis), which lives in the simulation zone.
+    # them. It does not include the integrated force correction (Pull towards
+    # control point, twist around axis), which lives in the simulation zone
     _sock(ng, "Velocity", "OUTPUT", "NodeSocketVector")
     _sock(ng, "Enable", "INPUT", "NodeSocketBool", True)
     _sock(ng, "Velocity", "INPUT", "NodeSocketVector", (0.0, 0.0, 0.0))
@@ -419,7 +419,7 @@ def build_movement_basic():
     I = _gin(ng)
 
     # SOURCE'S DRAG IS PER 30 Hz TICK, so the per-second rate is 30 x drag.
-    # Leaving this out made drag roughly thirty times too weak.
+    # Leaving this out made drag roughly thirty times too weak
     k = _nd(ng, "ShaderNodeMath", (-1260, -240), "k = 30 x drag",
             role="OPERATOR", operation="MULTIPLY")
     _lk(ng, gi, I["Drag"], k, 0)
@@ -464,11 +464,11 @@ def build_movement_basic():
     _lk(ng, gi, I["Velocity"], travel, 0)
     _lk(ng, t_use, 0, travel, 3)
 
-    # GRAVITY IS DRAGGED TOO.
-    #   no drag  ->  g t^2 / 2          (free fall)
-    #   drag     ->  g (t - t_eff) / k  (settles at terminal velocity g/k)
+    # gravity is dragged too.
+    # no drag  ->  g t^2 / 2          (free fall)
+    # drag     ->  g (t - t_eff) / k  (settles at terminal velocity g/k)
     # The two agree as k -> 0, so the switch is only there to keep the divide
-    # away from zero.
+    # away from zero
     g_s = _nd(ng, "ShaderNodeVectorMath", (-1080, 240), "gravity x scale",
               role="OPERATOR", operation="SCALE")
     _lk(ng, gi, I["Gravity"], g_s, 0)
@@ -521,8 +521,8 @@ def build_movement_basic():
     _lk(ng, out, 1, go, 0)
 
     # ── the velocity, for whoever inherits it ────────────────────────────
-    #   drag     v = v0 e^-kt + g x t_eff        (t_eff = (1 - e^-kt)/k)
-    #   no drag  v = v0 + g t
+    # drag     v = v0 e^-kt + g x t_eff        (t_eff = (1 - e^-kt)/k)
+    # no drag  v = v0 + g t
     v_kept = _nd(ng, "ShaderNodeVectorMath", (120, -560), "v0 x e^-kt",
                  role="OPERATOR", operation="SCALE")
     _lk(ng, gi, I["Velocity"], v_kept, 0)
@@ -603,7 +603,7 @@ those live in the simulation zone, not in this group.
 
 
 # =============================================================================
-#  OPERATOR  ·  Radius Scale
+# OPERATOR  ·  Radius Scale
 # =============================================================================
 
 def build_radius_scale():
@@ -638,7 +638,7 @@ def build_radius_scale():
     I = _gin(ng)
 
     # never a zero-length window: Map Range collapses to 0 when from_min ==
-    # from_max, which would pin every particle to Start Scale forever.
+    # from_max, which would pin every particle to Start Scale forever
     bump = _nd(ng, "ShaderNodeMath", (-1180, -220), role="OPERATOR",
                operation="ADD")
     _lk(ng, gi, I["Start Time"], bump, 0)
@@ -648,7 +648,7 @@ def build_radius_scale():
     _lk(ng, gi, I["End Time"], hi, 0)
     _lk(ng, bump, 0, hi, 1)
 
-    # 0.24.1: AGE AS A FRACTION OF LIFE - measured, see the docstring.
+    # 0.24.1: AGE AS A FRACTION OF LIFE - measured, see the docstring
     life = _nd(ng, "ShaderNodeMath", (-1180, 120), "lifetime, never zero",
                role="TIME", operation="MAXIMUM")
     _lk(ng, gi, I["Lifetime"], life, 0)
@@ -665,9 +665,9 @@ def build_radius_scale():
     _sv(ramp, 3, 0.0)
     _sv(ramp, 4, 1.0)
 
-    # SMOOTHSTEP IS NOT A MATH OPERATION in 5.2 - the Math node's enum stops
+    # SMOOTHSTEP is not A MATH OPERATION in 5.2 - the Math node's enum stops
     # at SMOOTH_MIN / SMOOTH_MAX, which are something else entirely. It lives
-    # on Map Range as an interpolation type.
+    # on Map Range as an interpolation type
     eased = _nd(ng, "ShaderNodeMapRange", (-560, -200), "smooth the ends",
                 role="OPERATOR", clamp=True,
                 interpolation_type="SMOOTHSTEP")
@@ -685,7 +685,7 @@ def build_radius_scale():
     # 0.24.1: SOURCE'S BIAS, MEASURED - BiasSIMD, Schlick's fast bias:
     # t / ((1/b - 2)(1 - t) + 1), b kept inside (0, 1); 0.5 is a straight
     # line. Kit 2's bias-0.95 row fits it to the pixel at every age - the
-    # textbook t ^ (log b / log 0.5) was up to 0.15 too big early in life.
+    # textbook t ^ (log b / log 0.5) was up to 0.15 too big early in life
     b_lo = _nd(ng, "ShaderNodeMath", (-340, -260), "bias, kept inside (0,1)",
                role="OPERATOR", operation="MAXIMUM")
     _lk(ng, gi, I["Bias"], b_lo, 0)
@@ -721,8 +721,8 @@ def build_radius_scale():
     _lk(ng, gi, I["Start Scale"], scale, 2)
     _lk(ng, gi, I["End Scale"], scale, 3)
 
-    # the envelope fades the SCALE back towards 1, not towards 0 - strength 0
-    # must mean "this operator is not acting", never "no radius at all".
+    #the envelope fades the SCALE back towards 1, not towards 0 - strength 0
+    #must mean "this operator is not acting", never "no radius at all"
     strong = _nd(ng, "ShaderNodeMix", (120, 60), "x operator strength",
                  role="OPERATOR", data_type="FLOAT", factor_mode="UNIFORM")
     _lk(ng, gi, I["Strength"], strong, 0)
@@ -776,7 +776,7 @@ cloud appear at full size.
 
 
 # =============================================================================
-#  OPERATOR  ·  Rotation Spin Roll
+# OPERATOR  ·  Rotation Spin Roll
 # =============================================================================
 
 def build_spin_roll():
@@ -819,7 +819,7 @@ def build_spin_roll():
 
     # stop_time 0 means "never stops", NOT "stops immediately" - reading it the
     # other way freezes every spinning sprite on frame one, and 0 is the
-    # commonly authored value.
+    # commonly authored value
     stops = _nd(ng, "FunctionNodeCompare", (-980, 200), "does it ever stop?",
                 role="OPERATOR", data_type="FLOAT", operation="GREATER_THAN")
     _lk(ng, gi, I["Stop Time"], stops, 0)
@@ -877,7 +877,7 @@ and gives the same answer however many times a frame is re-evaluated.
 
 
 # =============================================================================
-#  FORCE GENERATOR  ·  random force
+# FORCE GENERATOR  ·  random force
 # =============================================================================
 
 def build_random_force():
@@ -942,7 +942,7 @@ The draw is a VECTOR one, so each axis is independent: min (-100,0,0) to max
 
 
 # =============================================================================
-#  OPERATOR  ·  Rotation Yaw Flip Random
+# OPERATOR  ·  Rotation Yaw Flip Random
 # =============================================================================
 
 def build_yaw_flip():
@@ -1020,7 +1020,7 @@ mirrored and not.
 
 
 # =============================================================================
-#  INITIALIZER  ·  Velocity Noise
+# INITIALIZER  ·  Velocity Noise
 # =============================================================================
 
 def build_velocity_noise():
@@ -1082,17 +1082,17 @@ def build_velocity_noise():
     _lk(ng, tscale, 0, w, 0)
     _lk(ng, gi, I["Time Offset"], w, 1)
 
-    # 4D SO THAT TIME IS A REAL DIMENSION of the same field, not a separate
-    # animation of it. Two particles born a moment apart at the same place
-    # must land near each other in the noise, which is what makes the result
-    # read as a drifting gust rather than as flicker.
+    #4D SO that TIME is A REAL DIMENSION of the same field, not a separate
+    #animation of it. Two particles born a moment apart at the same place
+    #must land near each other in the noise, which is what makes the result
+    #read as a drifting gust rather than as flicker
     noise = _nd(ng, "ShaderNodeTexNoise", (-760, 100),
                 "one smooth field, sampled at birth", role="INITIALIZER",
                 noise_dimensions="4D")
     _lk(ng, coord, 0, noise, 0)
     _lk(ng, w, 0, noise, 1)
 
-    # Blender's noise Colour is 0..1 per channel; signed is 2c - 1.
+    #Blender's noise Colour is 0..1 per channel; signed is 2c - 1
     signed = _nd(ng, "ShaderNodeVectorMath", (-520, 100), "-> -1..1",
                  role="INITIALIZER", operation="MULTIPLY_ADD")
     _lk(ng, noise, 1, signed, 0)
@@ -1185,7 +1185,7 @@ which is how SFM turns a smooth field into ridges.
 
 
 # =============================================================================
-#  FORCE GENERATOR  ·  Pull towards control point
+# FORCE GENERATOR  ·  Pull towards control point
 # =============================================================================
 
 def build_pull_to_cp():
@@ -1217,7 +1217,7 @@ def build_pull_to_cp():
                role="OPERATOR", operation="LENGTH")
     _lk(ng, to_cp, 0, dist, 0)
     # never divide by zero: a particle sitting exactly on the control point
-    # has no direction to be pulled in.
+    # has no direction to be pulled in
     safe = _nd(ng, "ShaderNodeMath", (-480, -60), "never zero",
                role="OPERATOR", operation="MAXIMUM")
     _lk(ng, dist, 1, safe, 0)
@@ -1279,7 +1279,7 @@ power would blow up.
 
 
 # =============================================================================
-#  FORCE GENERATOR  ·  twist around axis
+# FORCE GENERATOR  ·  twist around axis
 # =============================================================================
 
 def build_twist_axis():
@@ -1311,9 +1311,9 @@ def build_twist_axis():
     _lk(ng, gi, I["Position"], rel, 0)
     _lk(ng, gi, I["Control Point"], rel, 1)
 
-    # the tangent is axis x radius. Taking the cross product with the WHOLE
+    # the tangent is axis x radius. Taking the cross product with the whole
     # offset rather than only its perpendicular part gives the same direction,
-    # because the component along the axis cancels in the cross product.
+    # bc the component along the axis cancels in the cross product.
     tangent = _nd(ng, "ShaderNodeVectorMath", (-760, 20),
                   "axis x offset = the way round", role="OPERATOR",
                   operation="CROSS_PRODUCT")
@@ -1369,7 +1369,7 @@ answer and it needs no special case.
 
 
 # =============================================================================
-#  INITIALIZER  ·  Position Along Path Sequential      (the beam-maker)
+# INITIALIZER  ·  Position Along Path Sequential      (the beam-maker)
 # =============================================================================
 
 def build_position_along_path():
@@ -1409,14 +1409,14 @@ def build_position_along_path():
     _sock(ng, "Scale", "INPUT", "NodeSocketFloat", 1.0)
     _sock(ng, "ID", "INPUT", "NodeSocketInt", 0)
     _sock(ng, "Seed", "INPUT", "NodeSocketInt", 0)
-    #  0.26.3: Position Along Path RANDOM rolls t instead of counting it
+    # 0.26.3: Position Along Path RANDOM rolls t instead of counting it
     _sock(ng, "Random Fraction", "INPUT", "NodeSocketBool", False)
     gi, go = _io(ng, (-1800, 0), (1500, 0))
     I = _gin(ng)
 
     # ── t: where along the path this particle sits ───────────────────────
-    #  WRAP, not MODULO - modulo is truncated and returns negatives, and a
-    #  negative t would put the head of the beam behind the start point.
+    # WRAP, not MODULO - modulo is truncated and returns negatives, and a
+    # negative t would put the head of the beam behind the start point
     n_safe = _nd(ng, "ShaderNodeMath", (-1600, 320), "at least two",
                  role="INITIALIZER", operation="MAXIMUM")
     _lk(ng, gi, I["Particles To Map"], n_safe, 0)
@@ -1453,7 +1453,7 @@ def build_position_along_path():
     _lk(ng, t_seq, 0, t, 1)
     _lk(ng, t_roll, 0, t, 2)
 
-    # ── the straight line from start to end ──────────────────────────────
+    #── the straight line from start to end ──────────────────────────────
     along = _nd(ng, "ShaderNodeVectorMath", (-1400, 20), "start -> end",
                 role="INITIALIZER", operation="SUBTRACT")
     _lk(ng, gi, I["End"], along, 0)
@@ -1471,11 +1471,11 @@ def build_position_along_path():
     _lk(ng, along, 0, unit, 0)
 
     # ── the bow: zero at both ends, widest at the mid point ──────────────
-    #  A TRIANGLE, not a sine: `mid point position` names the peak, and a
-    #  triangle is the only shape that puts it exactly there for any value.
-    #  Both halves are guarded - a mid point of 0 or 1 would divide by zero,
-    #  and the corpus has values above 1, where the peak lands past the end
-    #  and the bow simply grows all the way along.
+    # A TRIANGLE, not a sine: `mid point position` names the peak, and a
+    # triangle is the only shape that puts it exactly there for any value
+    # Both halves are guarded - a mid point of 0 or 1 would divide by zero,
+    # and the corpus has values above 1, where the peak lands past the end
+    # and the bow simply grows all the way along
     m_lo = _nd(ng, "ShaderNodeMath", (-1400, -320), "mid, never zero",
                role="INITIALIZER", operation="MAXIMUM")
     _lk(ng, gi, I["Mid Point"], m_lo, 0)
@@ -1510,10 +1510,10 @@ def build_position_along_path():
     _sv(hump_pos, 1, 0.0)
 
     # ── which way the bow points ─────────────────────────────────────────
-    #  1 and 2 take the named control point's own UP axis; 0 rolls a
-    #  direction per particle. Whatever it is, the component ALONG the beam is
-    #  removed - a bow parallel to the beam is not a bow, it is a particle
-    #  sliding along the line it is already on.
+    # 1 and 2 take the named control point's own UP axis; 0 rolls a
+    # direction per particle. Whatever it's, the component ALONG the beam is
+    # removed - a bow parallel to the beam is not a bow, it's a particle
+    # sliding along the line it's already on.
     up = _nd(ng, "ShaderNodeCombineXYZ", (-1600, -760), "the CP's own up",
              role="INITIALIZER")
     _sv(up, 2, 1.0)
@@ -1570,9 +1570,9 @@ def build_position_along_path():
                role="INITIALIZER", operation="SUBTRACT")
     _lk(ng, raw_dir, 0, perp, 0)
     _lk(ng, proj, 0, perp, 1)
-    # ⚠️ A DIRECTION PARALLEL TO THE BEAM LEAVES NOTHING, and normalizing zero
+    # ⚠️ A DIRECTION PARALLEL TO the BEAM LEAVES nothing, and normalizing zero
     # is zero - the bow would silently vanish. Fall back to whichever of the
-    # world axes is least parallel, the same trick the rope's width axis uses.
+    # world axes is least parallel, the same trick the rope's width axis uses
     fb_a = _nd(ng, "ShaderNodeVectorMath", (-440, -1060), "beam x up",
                role="INITIALIZER", operation="CROSS_PRODUCT")
     _lk(ng, unit, 0, fb_a, 0)
@@ -1709,7 +1709,7 @@ parallel to both.
 
 
 # =============================================================================
-#  EMITTER  ·  emit_instantaneously
+# EMITTER  ·  emit_instantaneously
 # =============================================================================
 
 def build_emit_instant():
@@ -1733,8 +1733,8 @@ def build_emit_instant():
     gi, go = _io(ng, (-1200, 0), (1200, 0))
     I = _gin(ng)
 
-    # THE CROSSING TEST, not "time >= start". A plain >= test re-fires the
-    # burst on every single frame after the start time.
+    #the CROSSING TEST, not "time >= start". A plain >= test re-fires the
+    #burst on every single frame after the start time
     now = _nd(ng, "FunctionNodeCompare", (-980, 180), "reached it?",
               role="EMITTER", data_type="FLOAT", operation="GREATER_EQUAL")
     _lk(ng, gi, I["Time"], now, 0)
@@ -1747,19 +1747,19 @@ def build_emit_instant():
               role="EMITTER", data_type="FLOAT", operation="LESS_THAN")
     _lk(ng, prev_t, 0, was, 0)
     _lk(ng, gi, I["Start Time"], was, 1)
-    # ...OR THIS IS THE VERY FIRST FRAME. Outside a simulation zone the clock
+    # ...or THIS IS the VERY first FRAME. Outside a simulation zone the clock
     # starts at 0, so a burst authored at start_time 0 - the commonest value
-    # there is - would test "0 < 0" and never fire at all.
+    # there's - would test "0 < 0" and never fire at all
     first = _nd(ng, "FunctionNodeCompare", (-760, -100), "or the first frame?",
                 role="TIME", data_type="FLOAT", operation="LESS_EQUAL")
     _lk(ng, prev_t, 0, first, 0)
     _sv(first, 1, 0.0)
-    # ⚠️ ...AND THE ZONE'S FIRST FRAME IS NOT THAT FRAME. A simulation zone
-    # reports DELTA TIME 0 on the frame it starts on, so `prev_t` there is the
+    # ⚠️ ...AND THE ZONE'S FIRST FRAME is not that FRAME. A simulation zone
+    # reports DELTA TIME 0 on the frame it starts on, so `prev_t` there's the
     # CURRENT time, not 0 - measured 0.033 with the playhead on frame 1. Both
     # tests above then read false and the burst is lost for the whole shot,
     # which is exactly why every start_time 0 burst returned nothing. There is
-    # no previous frame to have missed, so dt == 0 IS "the first frame".
+    # no previous frame to have missed, so dt == 0 is "the first frame".
     dt0 = _nd(ng, "FunctionNodeCompare", (-760, -220), "no previous frame",
               role="TIME", data_type="FLOAT", operation="LESS_EQUAL")
     _lk(ng, gi, I["Delta Time"], dt0, 0)
@@ -1782,7 +1782,7 @@ def build_emit_instant():
     _lk(ng, crossing, 0, fire, 0)
     _lk(ng, gi, I["Enable"], fire, 1)
 
-    # num_to_emit_minimum -1 means "not used" - emit exactly num_to_emit.
+    # num_to_emit_minimum -1 means "not used" - emit exactly num_to_emit
     used = _nd(ng, "FunctionNodeCompare", (-980, -220), "is a minimum set?",
                role="EMITTER", data_type="FLOAT", operation="GREATER_EQUAL")
     _lk(ng, gi, I["Count Min"], used, 0)
@@ -1792,14 +1792,14 @@ def build_emit_instant():
     _lk(ng, used, 0, lo, 0)
     _lk(ng, gi, I["Count Max"], lo, 1)
     _lk(ng, gi, I["Count Min"], lo, 2)
-    # ⚠️ NOT `Random Value` - IT IS A FIELD NODE AND THIS IS NOT A FIELD.
-    # A burst size is ONE number for the whole system, and it is consumed as
-    # one: it ends up as a point COUNT. Blender does not evaluate a field in
+    # ⚠️ NOT `Random Value` - IT IS A FIELD NODE and this IS NOT A FIELD.
+    # A burst size is one number for the whole system, and it is consumed as
+    # one: it ends up as a point COUNT. Blender doesn't evaluate a field in
     # that position, it substitutes the socket's type default - ZERO - so the
     # burst asked for nothing, on every frame, however correct the crossing
     # test was. It looks fine in any test that reads the count per point,
-    # because there it IS a field context. Same seed in, same number out,
-    # built from single-value maths instead.
+    # bc there it is a field context. Same seed in, same number out,
+    # built from single-value maths instead
     hashed = _nd(ng, "ShaderNodeMath", (-760, -400), "seed, stirred",
                  role="EMITTER", operation="MULTIPLY_ADD")
     _lk(ng, gi, I["Seed"], hashed, 0)
@@ -1872,7 +1872,7 @@ max_particles like anything else, so asking for 2000 with a cap of 200 gets
 
 
 # =============================================================================
-#  OPERATOR  ·  Alpha Fade and Decay        (2001 uses - the most common)
+# OPERATOR  ·  Alpha Fade and Decay        (2001 uses - the most common)
 # =============================================================================
 
 def build_alpha_fade_and_decay():
@@ -1943,9 +1943,9 @@ def build_alpha_fade_and_decay():
     _lk(ng, gi, I["Start Alpha"], rise, 3)
     _sv(rise, 4, 1.0)
 
-    # 0.24.1: THE FADE-OUT IS (1 - x)^2, MEASURED. Kit 2's default row,
+    # 0.24.1: the FADE-OUT IS (1 - x)^2, MEASURED. Kit 2's default row,
     # read back through the editor's double draw, fits (1 - x)^2 per draw
-    # to 0.01-0.03 alpha; a straight line is 0.1-0.25 too bright late in life.
+    # to 0.01-0.03 alpha; a straight line is 0.1-0.25 too bright late in life
     xo = _nd(ng, "ShaderNodeMapRange", (-220, -380), "fade-out progress x",
              role="OPERATOR", clamp=True)
     _lk(ng, frac, 0, xo, 0)
@@ -2010,7 +2010,7 @@ setting there is. Both windows are floored by EPS.
 
 
 # =============================================================================
-#  OPERATOR  ·  Remap Distance to Control Point to Scalar     (628 uses here)
+# OPERATOR  ·  Remap Distance to Control Point to Scalar     (628 uses here)
 # =============================================================================
 
 def build_remap_distance_cp():
@@ -2053,8 +2053,8 @@ def build_remap_distance_cp():
                role="OPERATOR", operation="LENGTH")
     _lk(ng, diff, 0, dist, 0)
 
-    # The thresholds are authored in Hammer units; positions arrive in
-    # scene units, so the window scales and the output does not.
+    # the thresholds are authored in Hammer units; positions arrive in
+    # scene units, so the window scales and the output doesn't
     dmin_s = _nd(ng, "ShaderNodeMath", (-1050, 60), "distance min x scale",
                  role="OPERATOR", operation="MULTIPLY")
     _lk(ng, gi, I["Distance Min"], dmin_s, 0)
@@ -2144,7 +2144,7 @@ needed and scrubbing stays correct.
 
 
 # =============================================================================
-#  OPERATOR  ·  Color Fade                          (1493 uses)
+# OPERATOR  ·  Color Fade                          (1493 uses)
 # =============================================================================
 
 def build_color_fade():
@@ -2170,7 +2170,7 @@ def build_color_fade():
     gi, go = _io(ng, (-1100, 0), (900, 0))
     I = _gin(ng)
 
-    # 0.24.1: FRACTIONS OF LIFE, measured (kit 2's fade ran across the whole life)
+    #0.24.1: FRACTIONS OF LIFE, measured (kit 2's fade ran across the whole life)
     c_life = _nd(ng, "ShaderNodeMath", (-880, 260), "lifetime, never zero",
                  role="TIME", operation="MAXIMUM")
     _lk(ng, gi, I["Lifetime"], c_life, 0)
@@ -2198,7 +2198,7 @@ def build_color_fade():
     _sv(linear, 3, 0.0)
     _sv(linear, 4, 1.0)
 
-    # SMOOTHSTEP IS A MAP RANGE INTERPOLATION, NOT A MATH OPERATION - the
+    # SMOOTHSTEP IS A MAP RANGE INTERPOLATION, not A MATH OPERATION - the
     # Math node's enum stops at SMOOTH_MIN / SMOOTH_MAX, which are a different
     # thing entirely.
     smooth = _nd(ng, "ShaderNodeMapRange", (-480, -140), "eased ramp",
@@ -2252,10 +2252,10 @@ else entirely and would silently give a different curve.
 
 
 # =============================================================================
-#  CHILDREN  ·  Position From Parent Particles
+# CHILDREN  ·  Position From Parent Particles
 # =============================================================================
 
-# How the parent's particles are read out of the parent object. The number is
+# how the parent's particles are read out of the parent object. The number is
 # a socket, so one node group serves every kind of parent.
 PARENT_FROM_INSTANCES = 0
 PARENT_FROM_POINTS = 1
@@ -2322,7 +2322,7 @@ def build_position_from_parent():
     gi, go = _io(ng, (-1500, 0), (1300, 0))
     I = _gin(ng)
 
-    # ── how many parent particles are there ──────────────────────────────
+    #── how many parent particles are there ──────────────────────────────
     n_inst = _nd(ng, "GeometryNodeAttributeDomainSize", (-1240, 420),
                  "instances", role="EMITTER", component="INSTANCES")
     _lk(ng, gi, I["Parent"], n_inst, 0)
@@ -2342,8 +2342,8 @@ def build_position_from_parent():
     _lk(ng, gi, I["Read From"], is_vert, 0)
     _sv(is_vert, 1, PARENT_FROM_VERTICES)
 
-    # Instance Count is output 5 on that node, Point Count is output 0 - the
-    # disabled sockets are still in the list.
+    #Instance Count is output 5 on that node, Point Count is output 0 - the
+    #disabled sockets are still in the list.
     cnt_a = _nd(ng, "GeometryNodeSwitch", (-820, 300), "instances or points",
                 role="EMITTER", input_type="INT")
     _lk(ng, is_pts, 0, cnt_a, 0)
@@ -2375,7 +2375,7 @@ def build_position_from_parent():
     _lk(ng, gi, I["ID"], id_f, 0)
     _sv(id_f, 1, 1.0)
     # WRAP, not MODULO. Blender's modulo is truncated and returns a NEGATIVE
-    # result for negative input, which would index off the front of the list.
+    # result for negative input, which would index off the front of the list
     seq = _nd(ng, "ShaderNodeMath", (-220, -20), "id wrapped into range",
               role="EMITTER", operation="WRAP")
     _lk(ng, id_f, 0, seq, 0)
@@ -2431,10 +2431,10 @@ def build_position_from_parent():
     _lk(ng, s_pts, 0, pos, 2)
     _lk(ng, pos, 0, go, 0)
 
-    # ── and how fast it was going ────────────────────────────────────────
-    #  particle_velocity is written by every system this add-on builds, so a
-    #  parent advertises its motion without being asked. A parent that does
-    #  not carry it reads as zero, which is simply no inheritance.
+    #── and how fast it was going ────────────────────────────────────────
+    #particle_velocity is written by every system this add-on builds, so a
+    #parent advertises its motion w/o being asked. A parent that does
+    #not carry it reads as zero, which is simply no inheritance
     pvel = _nd(ng, "GeometryNodeInputNamedAttribute", (160, -420),
                "particle_velocity [read]", role="EMITTER",
                data_type="FLOAT_VECTOR")
@@ -2514,7 +2514,7 @@ count.
 
 
 # =============================================================================
-#  FORCE GENERATOR  ·  random force, per tick  (the crackle)
+# FORCE GENERATOR  ·  random force, per tick  (the crackle)
 # =============================================================================
 
 def build_random_force_tick():
@@ -2551,12 +2551,12 @@ def build_random_force_tick():
     tick = _nd(ng, "ShaderNodeMath", (-1100, 200), "which tick",
                role="OPERATOR", operation="FLOOR")
     _lk(ng, t30, 0, tick, 0)
-    #  ...AND WHICH PARTICLE. A tick-only roll is shared by the whole system
-    #  and just LEANS the beam collectively (measured: the kink pattern sat
-    #  still, 0.2 HU of crawl over ten frames). Each particle rolling its
-    #  own force each tick is what decorrelates neighbours into the lively
-    #  wiggle the reference shows - the rope's Catmull-Rom then smooths the
-    #  independent points into kinks.
+    # ...and which PARTICLE. A tick-only roll is shared by the whole system
+    # and just LEANS the beam collectively (measured: the kink pattern sat
+    # still, 0.2 HU of crawl over ten frames). Each particle rolling its
+    # own force each tick is what decorrelates neighbours into the lively
+    # wiggle the reference shows - the rope's Catmull-Rom then smooths the
+    # independent points into kinks
     base = _nd(ng, "ShaderNodeMath", (-920, 200), "tick + id",
                role="OPERATOR", operation="MULTIPLY_ADD")
     _lk(ng, gi, I["ID"], base, 0)
@@ -2644,7 +2644,7 @@ per-particle constant reading - it has no memory to integrate with).
 
 
 # =============================================================================
-#  INITIALIZER  ·  Rotation Yaw Random
+# INITIALIZER  ·  Rotation Yaw Random
 # =============================================================================
 
 def build_yaw_random():
@@ -2679,7 +2679,7 @@ def build_yaw_random():
     _lk(ng, salt, 0, yaw, 3)
     rad = _nd(ng, "ShaderNodeMath", (-320, -60), "degrees -> radians",
               role="INITIALIZER", operation="RADIANS")
-    _lk(ng, yaw, 0, rad, 0)      # 0.26.3: 5.2's Random Value has ONE output
+    _lk(ng, yaw, 0, rad, 0)      # 0.26.3: 5.2's Random Value has one output
     squish = _nd(ng, "ShaderNodeMath", (-140, -60), "cos = how much is left",
                  role="INITIALIZER", operation="COSINE")
     _lk(ng, rad, 0, squish, 0)
@@ -2711,7 +2711,7 @@ Disabled it returns exactly 1 and the chain is untouched.
 
 
 # =============================================================================
-#  CONSTRAINT  ·  Constrain distance to control point
+# CONSTRAINT  ·  Constrain distance to control point
 # =============================================================================
 
 def build_constrain_to_cp():
@@ -2813,7 +2813,7 @@ final position), the same order Source runs its constraint list.
 
 
 # =============================================================================
-#  CONSTRAINT  ·  Constrain distance to path between two control points
+# CONSTRAINT  ·  Constrain distance to path between two control points
 # =============================================================================
 
 def build_constrain_to_path():
@@ -2843,8 +2843,8 @@ def build_constrain_to_path():
     _sock(ng, "Age", "INPUT", "NodeSocketFloat", 0.0)
     _sock(ng, "Start", "INPUT", "NodeSocketVector", (0.0, 0.0, 0.0))
     _sock(ng, "End", "INPUT", "NodeSocketVector", (0.0, 0.0, 0.0))
-    #  Eulers, converted OUTSIDE the group - same convention as the path
-    #  initializer's Start/End Rotation inputs.
+    #eulers, converted OUTSIDE the group - same convention as the path
+    #initializer's Start/End Rotation inputs
     _sock(ng, "Start Rotation", "INPUT", "NodeSocketVector", (0.0, 0.0, 0.0))
     _sock(ng, "End Rotation", "INPUT", "NodeSocketVector", (0.0, 0.0, 0.0))
     _sock(ng, "Bulge Control", "INPUT", "NodeSocketInt", 0)
@@ -2876,19 +2876,19 @@ def build_constrain_to_path():
     _lk(ng, t_raw, 0, t, 0)
     _sv(t, 1, 1.0)
 
-    # ── the path: a bow through a (bulged) midpoint ──────────────────────
+    # ── the path: a bow thru a (bulged) midpoint ──────────────────────
     mid_base = _nd(ng, "ShaderNodeMix", (-1270, 120), "midpoint on the line",
                    role="CONSTRAINT", data_type="VECTOR")
     _lk(ng, gi, I["Mid Point"], mid_base, 0)
     _lk(ng, gi, I["Start"], mid_base, 4)
     _lk(ng, gi, I["End"], mid_base, 5)
 
-    #  WHICH WAY THE BOW POINTS - the path initializer's own convention:
-    #  bulge control 1/2 take the named CP's UP axis through its rotation,
-    #  0 rolls a direction per particle. Either way the component ALONG the
-    #  beam is removed (a bow along the beam is a slide, not a bow), with
-    #  the least-parallel-axis fallback so a vertical beam under an
-    #  unrotated CP still bows somewhere instead of silently not at all.
+    # which WAY the BOW POINTS - the path initializer's own convention:
+    # bulge control 1/2 take the named CP's UP axis thru its rotation,
+    # 0 rolls a direction per particle. Either way the component ALONG the
+    # beam is removed (a bow along the beam is a slide, not a bow), with
+    # the least-parallel-axis fallback so a vertical beam under an
+    # unrotated CP still bows somewhere instead of silently not at all.
     seg = _nd(ng, "ShaderNodeVectorMath", (-1630, -80), "start -> end",
               role="CONSTRAINT", operation="SUBTRACT")
     _lk(ng, gi, I["End"], seg, 0)
@@ -3006,7 +3006,7 @@ def build_constrain_to_path():
     mag_a = _nd(ng, "ShaderNodeMath", (350, -620), "bulge x roll",
                 role="CONSTRAINT", operation="MULTIPLY")
     _lk(ng, gi, I["Random Bulge"], mag_a, 0)
-    _lk(ng, mag_roll, 0, mag_a, 1)   # 0.26.3: 5.2's Random Value has ONE output
+    _lk(ng, mag_roll, 0, mag_a, 1)   # 0.26.3: 5.2's Random Value has one output
     mag = _nd(ng, "ShaderNodeMath", (530, -620), "x path length",
               role="CONSTRAINT", operation="MULTIPLY")
     _lk(ng, mag_a, 0, mag, 0)
@@ -3020,7 +3020,7 @@ def build_constrain_to_path():
     _lk(ng, mid_base, 1, mid, 0)
     _lk(ng, bow, 0, mid, 1)
 
-    #  Quadratic bezier through start / mid / end, evaluated at t.
+    # Quadratic bezier thru start / mid / end, evaluated at t
     leg_a = _nd(ng, "ShaderNodeMix", (-730, 200), "start -> mid",
                 role="CONSTRAINT", data_type="VECTOR")
     _lk(ng, t, 0, leg_a, 0)
@@ -3038,7 +3038,7 @@ def build_constrain_to_path():
     _lk(ng, leg_b, 1, anchor, 5)
 
     # ── the distance envelope along the path ─────────────────────────────
-    #  -1 (the engine's sentinel) means "same as Maximum Distance".
+    # -1 (the engine's sentinel) means "same as Maximum Distance"
     def sentinel(idx_name, y, tag):
         neg = _nd(ng, "ShaderNodeMath", (-1450, y), f"{tag} authored?",
                   role="CONSTRAINT", operation="LESS_THAN")
@@ -3080,13 +3080,13 @@ def build_constrain_to_path():
     env = _nd(ng, "GeometryNodeSwitch", (-370, 540), "the envelope now",
               role="CONSTRAINT", input_type="FLOAT")
     _lk(ng, first_half, 0, env, 0)
-    #  ⚠️ OUTPUT 0, NOT 1. A FLOAT-mode Mix keeps its answer on Result
-    #  index 0; index 1 is the VECTOR result, which a float Mix never
-    #  computes - it reads back as ZERO, silently. Wired to 1, the whole
-    #  distance envelope evaluated to 0, every particle was glued exactly
-    #  onto its anchor, and no Maximum Distance slider (or any force) could
-    #  ever do anything - measured as "max 500 + force 9000 changes
-    #  nothing". The vector mixes above really do use output 1.
+    # ⚠️ OUTPUT 0, not 1. A FLOAT-mode Mix keeps its answer on Result
+    # index 0; index 1 is the VECTOR result, which a float Mix never
+    # computes - it reads back as ZERO, silently. Wired to 1, the whole
+    # distance envelope evaluated to 0, every particle was glued exactly
+    # onto its anchor, and no Maximum Distance slider (or any force) could
+    # ever do anything - measured as "max 500 + force 9000 changes
+    # nothing". The vector mixes above really do use output 1
     _lk(ng, e2, 0, env, 1)
     _lk(ng, e1, 0, env, 2)
     env_hu = _nd(ng, "ShaderNodeMath", (-190, 540), "envelope x scale",
@@ -3113,7 +3113,7 @@ def build_constrain_to_path():
                    role="CONSTRAINT", operation="MAXIMUM")
     _lk(ng, dist, 1, at_least, 0)
     _lk(ng, min_hu, 0, at_least, 1)
-    #  MAX WINS: min first, max second, so "end 0 min 1" lands ON the path.
+    # MAX WINS: min first, max second, so "end 0 min 1" lands ON the path
     at_most = _nd(ng, "ShaderNodeMath", (170, 60), "at most the envelope",
                   role="CONSTRAINT", operation="MINIMUM")
     _lk(ng, at_least, 0, at_most, 0)

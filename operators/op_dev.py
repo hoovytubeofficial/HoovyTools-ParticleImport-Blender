@@ -31,7 +31,7 @@ def addon_version():
         return "?"
 
 
-# ── the checks ────────────────────────────────────────────────────────────
+#── the checks ────────────────────────────────────────────────────────────
 
 def _check_usermod(_ctx):
     found = op_prefs.find_usermod()
@@ -135,7 +135,7 @@ def _check_built(_ctx):
     return OK, "%d system(s)" % len(hosts), "  |  ".join(files[:6]) or "nothing imported yet", None, None
 
 
-#  Order is the order things fail in. The two below the line are about THIS .blend, not the install.
+# order is the order things fail in. The two below the line are about THIS .blend, not the install
 CHECKS = (("usermod", "SFM usermod", _check_usermod), ("particles", "Particles", _check_particles),
           ("materials", "Materials", _check_materials), ("fallbacks", "Fallbacks", _check_fallbacks),
           ("pillow", "Preview cards", _check_pillow), ("worker", "Worker Blender", _check_worker),
@@ -515,7 +515,7 @@ contains all of this too - this is the short one"""
         return {"FINISHED"}
 
 
-# ── drawing ───────────────────────────────────────────────────────────────
+#── drawing ───────────────────────────────────────────────────────────────
 
 def _row_button(row, r):
     """The one button a row needs, as SFM Session Importer draws it: LOAD (or ENABLE) when it is not there, the
@@ -552,7 +552,7 @@ def draw_wiring(layout, context):
     right.operator("htp.recheck_wiring", text="", icon="FILE_REFRESH")
     if box is None:
         return
-    #  EVERY ROW THE SAME THREE SYMBOLS AS SFM SESSION IMPORTER'S, a rule between rows
+    #EVERY ROW the same THREE SYMBOLS AS SFM SESSION IMPORTER'S, a rule between rows
     col = box.column()
     split_done = False
     for i, r in enumerate(rows):

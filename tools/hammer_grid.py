@@ -1,28 +1,28 @@
 # =============================================================================
-#  tools/hammer_grid.py  -  paint a real Hammer / SFM unit grid on the floor
+# tools/hammer_grid.py  -  paint a real Hammer / SFM unit grid on the floor
 # =============================================================================
 #
-#  WHY THIS EXISTS. Every argument about particle scale so far has been someone
-#  guessing what a number means. This removes the guessing: it draws SOURCE'S
-#  OWN GRID at 1 Blender Unit = 1 Hammer Unit, so a distance in a .pcf can be
-#  read straight off the floor.
+# WHY this EXISTS. Every argument about particle scale so far has been someone
+# guessing what a number means. This removes the guessing: it draws SOURCE'S
+# OWN GRID at 1 Blender Unit = 1 Hammer Unit, so a distance in a .pcf can be
+# read straight off the floor
 #
-#      1 HU   faint grey        the smallest thing Hammer snaps to
-#      8 HU   grey              Hammer's usual working snap
-#      16 HU  muted orange      a wall panel
-#      64 HU  bright orange     a room
-#      X / Y  brightest orange  world origin
+# 1 HU   faint grey        the smallest thing Hammer snaps to
+# 8 HU   grey              Hammer's usual working snap
+# 16 HU  muted orange      a wall panel
+# 64 HU  bright orange     a room
+# X / Y  brightest orange  world origin
 #
-#  Reference height: a TF2 Scout imports at 81.6924 units. If your effect does
-#  not look right next to that empty, the effect is wrong, not the grid.
+# Reference height: a TF2 Scout imports at 81.6924 units. If your effect does
+# not look right next to that empty, the effect is wrong, not the grid
 #
-#  ONE plane + ONE procedural shader. Grid lines are shader maths, not
-#  geometry, so the extent costs nothing and nothing shows up in the outliner
-#  except the plane and two markers.
+# one plane + one procedural shader. Grid lines are shader maths, not
+# geometry, so the extent costs nothing and nothing shows up in the outliner
+# except the plane and two markers.
 #
-#  THE SCALE POINT. This deliberately does NOT convert to metres. Source works
-#  in Hammer units and so should we while translating an effect; a system built
-#  against this grid wants Scale = 1.0, not the 0.01905 metres-per-unit default.
+# THE SCALE POINT. This deliberately does NOT convert to metres. Source works
+# in Hammer units and so should we while translating an effect; a system built
+# against this grid wants Scale = 1.0, not the 0.01905 metres-per-unit default
 # =============================================================================
 
 import bpy
@@ -43,7 +43,7 @@ MAJOR_STEP = 16.0
 SUPER_STEP = 64.0
 CHECKER_STEP = 16.0
 
-# Line thickness, also in Hammer units. Thickness does not affect spacing.
+# line thickness, also in Hammer units. Thickness does not affect spacing
 MINOR_WIDTH = 0.030
 MEDIUM_WIDTH = 0.060
 MAJOR_WIDTH = 0.100
@@ -57,12 +57,12 @@ BACKGROUND_A = (0.060, 0.064, 0.070, 1.0)
 BACKGROUND_B = (0.078, 0.082, 0.088, 1.0)
 MINOR_COLOR = (0.125, 0.132, 0.140, 1.0)
 MEDIUM_COLOR = (0.235, 0.240, 0.245, 1.0)
-MAJOR_COLOR = (0.490, 0.255, 0.095, 1.0)   # restrained old-Hammer orange
-SUPER_COLOR = (0.920, 0.365, 0.055, 1.0)   # strong Valve orange
+MAJOR_COLOR = (0.490, 0.255, 0.095, 1.0)   #restrained old-Hammer orange
+SUPER_COLOR = (0.920, 0.365, 0.055, 1.0)   #strong Valve orange
 AXIS_COLOR = (1.000, 0.520, 0.080, 1.0)
 EMISSION_STRENGTH = 0.85
 
-# Frame tints, by what the maths in them is for.
+#frame tints, by what the maths in them is for
 FRAME_COORD = (0.20, 0.26, 0.30)
 FRAME_GRID = (0.33, 0.22, 0.12)
 FRAME_COLOR = (0.28, 0.24, 0.20)
@@ -206,10 +206,10 @@ this grid, its Scale should be 1.0.
         add = _nd(nt, "ShaderNodeMath", (-860, 710), "X + Y", operation="ADD")
         _lk(nt, fx, 0, add, 0)
         _lk(nt, fy, 0, add, 1)
-        # WRAP, NOT MODULO. Blender's MODULO is truncated, so cell -3 gives
+        # WRAP, not MODULO. Blender's MODULO is truncated, so cell -3 gives
         # -1 rather than 1; the mix factor then clamps to zero and the checker
         # silently disappears everywhere south-west of the origin. WRAP folds
-        # into [0, 2) for negative inputs too.
+        # into [0, 2) for negative inputs too
         odd = _nd(nt, "ShaderNodeMath", (-670, 710), "every other one",
                   operation="WRAP")
         _lk(nt, add, 0, odd, 0)
@@ -298,8 +298,8 @@ def build(extent=256.0, checker=True, markers=True, set_units=True,
     """Stand the grid up. Returns (object, info)."""
     scene = bpy.context.scene
 
-    # Remove the previous one first, or a second run leaves two coplanar
-    # planes z-fighting and it looks like the shader is broken.
+    # remove the previous one first, or a second run leaves two coplanar
+    # planes z-fighting and it looks like the shader is broken
     old_coll = bpy.data.collections.get(COLLECTION_NAME)
     if old_coll is not None:
         for obj in list(old_coll.objects):
@@ -325,9 +325,9 @@ def build(extent=256.0, checker=True, markers=True, set_units=True,
     obj = bpy.data.objects.new(OBJECT_NAME, mesh)
     coll.objects.link(obj)
 
-    # The plane must stay at scale 1: the shader reads WORLD position, so
+    # the plane must stay at scale 1: the shader reads WORLD position, so
     # scaling the object would stretch the maths and every line would land on
-    # the wrong number while still looking like a tidy grid.
+    # the wrong number while still looking like a tidy grid
     obj.scale = (1.0, 1.0, 1.0)
     obj.hide_render = bool(hide_in_render)
 
@@ -352,7 +352,7 @@ def build(extent=256.0, checker=True, markers=True, set_units=True,
 
     if set_units:
         # Blender must stop claiming these are metres, or every readout in the
-        # N panel disagrees with the grid you are looking at.
+        # N panel disagrees with the grid you are looking at
         try:
             scene.unit_settings.system = "NONE"
         except Exception as exc:
@@ -370,7 +370,7 @@ def build_line_material():
     """3.0.0: plain white, unlit, slightly see-through - the lines are the only geometry, so everything between
     them is empty and a particle under the grid shows."""
     mat = bpy.data.materials.get(LINE_MATERIAL_NAME) or bpy.data.materials.new(LINE_MATERIAL_NAME)
-    mat.diffuse_color = (0.92, 0.92, 0.92, 0.8)          # Solid mode draws this
+    mat.diffuse_color = (0.92, 0.92, 0.92, 0.8)          # solid mode draws this
     if mat.node_tree is None:
         mat.use_nodes = True
     nt = mat.node_tree

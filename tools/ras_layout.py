@@ -1,27 +1,27 @@
 # =============================================================================
-#  ras_layout.py  -  the HAND-CLEANED graph layouts. GENERATED DATA.
+# ras_layout.py  -  the HAND-CLEANED graph layouts. GENERATED DATA.
 # =============================================================================
 #
-#  Written by "__ForYou/Encode Cleaned Layout.py". DO NOT EDIT BY HAND -
-#  clean a workbench .blend instead and run that script again; it replaces
-#  only the tables for what is in the open file.
+# Written by "__ForYou/Encode Cleaned Layout.py". do not EDIT BY HAND -
+# clean a workbench .blend instead and run that script again; it replaces
+# only the tables for what is in the open file
 #
-#  TABLES  - geometry system groups, keyed by renderer (which "SP ·
-#            RENDERER · render_*" group the system instances). Replayed by
-#            layout.apply_hand_layout() inside tidy().
-#  SHADERS - materials + shader groups, keyed by name FAMILY (before the
-#            first " · "). Replayed by layout.apply_shader_layout() at the
-#            end of the material / sheet-UV builders.
+# TABLES  - geometry system groups, keyed by renderer (which "SP ·
+# RENDERER · render_*" group the system instances). Replayed by
+# layout.apply_hand_layout() inside tidy()
+# SHADERS - materials + shader groups, keyed by name FAMILY (before the
+# first " · "). Replayed by layout.apply_shader_layout() at the
+# end of the material / sheet-UV builders.
 #
-#  Table shapes:
-#    FRAMES  (name, create, label, label_size, shrink, colour, parent,
-#             location, size) - parents before children; create=False are
-#             the builder's own note-carrying frames (matched by name +
-#             label), create=True are hand-added and recreated.
-#    NODES   name: (parent frame, location, width, identity-check) where
-#            identity is ("label", node label) / ("group", node-tree name
-#            prefix) / None - how a name is verified to still mean the
-#            same node in a rebuilt tree before any of this is trusted.
+# Table shapes:
+# FRAMES  (name, create, label, label_size, shrink, colour, parent,
+# location, size) - parents before children; create=False are
+# the builder's own note-carrying frames (matched by name +
+# label), create=True are hand-added and recreated.
+# NODES   name: (parent frame, location, width, identity-check) where
+# identity is ("label", node label) / ("group", node-tree name
+# prefix) / None - how a name is verified to still mean the
+# same node in a rebuilt tree before any of this is trusted
 # =============================================================================
 
 VERSION = 3

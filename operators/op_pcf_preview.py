@@ -208,10 +208,10 @@ def _work_dir():
     return os.path.join(bpy.app.tempdir or tempfile.gettempdir(), "htp_preview_%d" % int(time.time() * 1000))
 
 
-# ── Create PCF Preview ───────────────────────────────────────────────────────
+#── Create PCF Preview ───────────────────────────────────────────────────────
 
 class HTP_OT_CreatePcfPreview(_CardChoices, _Runner, Operator):
-    #  The docstring is the tooltip - and the rules for the card.
+    # the docstring is the tooltip - and the rules for the card
     """Make the preview card for the .pcf chosen in the Import tab.
 
 The effect is rendered the way SFM's particle editor shows it - pure black,
@@ -274,7 +274,7 @@ THIS FEATURE WAS ADDED IN VERSION 0.25.0 AND IS IN EXPERIMENTAL STAGE"""
     system: StringProperty(options={"HIDDEN", "SKIP_SAVE"})
     out_dir: StringProperty(options={"HIDDEN", "SKIP_SAVE"})
 
-    # ── choosing what to render ──────────────────────────────────────────
+    #── choosing what to render ──────────────────────────────────────────
     def _files_and_system(self, context):
         p = pi.props(context)
         chosen = bpy.path.abspath(self.pcf_path) if self.pcf_path else \

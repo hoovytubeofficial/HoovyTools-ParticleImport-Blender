@@ -1,14 +1,14 @@
 # =============================================================================
-#  operators/op_vtf.py  -  IMPORT VTF
+# operators/op_vtf.py  -  IMPORT VTF
 # =============================================================================
 #
-#  Pick a .vtf, decode it in pure Python, land it as a PACKED Image datablock
-#  inside the .blend. No loose TGA piles, no VTFEdit, no Source IO at runtime.
-#  Decoding + the sprite-sheet table live in tools/vtf.py.
+# Pick a .vtf, decode it in pure Python, land it as a PACKED Image datablock
+# inside the .blend. No loose TGA piles, no VTFEdit, no Source IO at runtime.
+# Decoding + the sprite-sheet table live in tools/vtf.py.
 #
-#  The browser opens in SFM's usermod\materials when we can find it (paths.py).
+# The browser opens in SFM's usermod\materials when we can find it (paths.py)
 #
-#  Developer tool - reached from the sidebar's Developer tab, NOT File > Import.
+# Developer tool - reached from the sidebar's Developer tab, NOT File > Import
 # =============================================================================
 
 from pathlib import Path
@@ -26,9 +26,9 @@ from ..tools import vtf
 
 TAG = "[HT_PARTICLE]"
 
-#  THE SOURCE SHADER FAMILIES, as buttons on every texture/material import.
-#  One set, shared by all four import operators, so the choice reads the same
-#  everywhere: Auto follows what the file says, the other three FORCE it.
+# the SOURCE SHADER FAMILIES, as buttons on every texture/material import
+# One set, shared by all four import operators, so the choice reads the same
+# everywhere: Auto follows what the file says, the other three FORCE it
 SHADER_ITEMS = (
     ("AUTO", "Auto",
      "Follow the file: a .vmt uses its own shader, a bare .vtf gets the "
@@ -57,14 +57,14 @@ def vtf_to_image(path, name=None):
     rgba, info = vtf.decode_u8(path)
     name = name or Path(path).stem
 
-    #  🔴 NEVER REMOVE THE OLD DATABLOCK FIRST. Several systems share one
-    #  .vtf (glow_a is on five systems of one effect, under two material
-    #  variants), and every earlier-built material still points at the old
-    #  image - removing it left their texture slots at None. The EEVEE
-    #  viewport kept showing the pixels it had in memory, so everything
-    #  LOOKED fine until Cycles re-read the scene and drew every one of
-    #  those cards as a flat missing-texture slab. So: import the fresh
-    #  copy, RE-POINT every user of the old image at it, then drop the old.
+    # 🔴 never REMOVE the OLD DATABLOCK FIRST. Several systems share one
+    # .vtf (glow_a is on five systems of one effect, under two material
+    # variants), and every earlier-built material still points at the old
+    # image - removing it left their texture slots at None. The EEVEE
+    # viewport kept showing the pixels it had in memory, so everything
+    # LOOKED fine until Cycles re-read the scene and drew every one of
+    # those cards as a flat missing-texture slab. So: import the fresh
+    # copy, RE-POINT every user of the old image at it, then drop the old
     old = bpy.data.images.get(name)
 
     tmp = os.path.join(tempfile.gettempdir(), f"_htp_vtf_{abs(hash(name))}.png")
@@ -97,13 +97,13 @@ def vtf_to_image(path, name=None):
 
     img.colorspace_settings.name = "Non-Color" if info["is_normal"] else "sRGB"
     img.alpha_mode = "STRAIGHT"
-    # A texture imported on its own has no users yet; without this it is
-    # purged on save before it can ever be assigned to anything.
+    # A texture imported on its own has no users yet; w/o this it's
+    # purged on save before it can ever be assigned to anything
     img.use_fake_user = True
     img.update()
 
-    # Stash the sheet layout on the image so the geo-node sprite lookup can
-    # read it later without re-opening the .vtf.
+    #stash the sheet layout on the image so the geo-node sprite lookup can
+    #read it later without re-opening the .vtf
     try:
         sheet = vtf.get_sheet(path)
     except Exception as exc:
@@ -181,10 +181,10 @@ def _preview_sphere(context, img, index=0, collection=None, shader="AUTO",
     nt = mat.node_tree
 
     if shader in ("UNLIT", "SHEET"):
-        #  UNLITGENERIC / SPRITECARD: the texture GLOWS, nothing lights it -
-        #  which is what a Source sprite actually is. SpriteCard additionally
-        #  crops to the sheet's FIRST FRAME when the .vtf carries a sheet
-        #  table, so a 4x4 grid previews as one frame, not sixteen thumbnails.
+        # UNLITGENERIC / SPRITECARD: the texture GLOWS, nothing lights it -
+        # which is what a Source sprite actually is. SpriteCard additionally
+        # crops to the sheet's first FRAME when the .vtf carries a sheet
+        # table, so a 4x4 grid previews as one frame, not sixteen thumbnails
         nt.nodes.clear()
         out = nt.nodes.new("ShaderNodeOutputMaterial")
         out.location = (300, 0)
@@ -214,7 +214,7 @@ def _preview_sphere(context, img, index=0, collection=None, shader="AUTO",
         nt.links.new(em.outputs[0], mix.inputs[2])
         nt.links.new(mix.outputs[0], out.inputs["Surface"])
     else:
-        # AUTO: the plain lit preview - Principled wearing the picture.
+        # AUTO: the plain lit preview - Principled wearing the picture
         bsdf = nt.nodes.get("Principled BSDF")
         tex = nt.nodes.new("ShaderNodeTexImage")
         tex.image = img
@@ -226,7 +226,7 @@ def _preview_sphere(context, img, index=0, collection=None, shader="AUTO",
             for socket, val in (("Roughness", 1.0), ("Metallic", 0.0)):
                 if socket in bsdf.inputs:
                     bsdf.inputs[socket].default_value = val
-    # Sprite sheets are mostly alpha - show it through.
+    # Sprite sheets are mostly alpha - show it thru
     for attr, val in (("blend_method", "BLEND"),
                       ("surface_render_method", "BLENDED")):
         try:
@@ -255,11 +255,11 @@ and how hot it burns, live in the .vmt. Use Import VMT for that."""
 
     filename_ext = ".vtf"
     filter_glob: StringProperty(default="*.vtf", options={"HIDDEN"})
-    # Multi-select: pick a whole folder of sheets in one go.
+    #multi-select: pick a whole folder of sheets in one go.
     files: CollectionProperty(type=OperatorFileListElement, options={"HIDDEN"})
     directory: StringProperty(subtype="DIR_PATH", options={"HIDDEN"})
-    #  ON BY DEFAULT: seeing the texture on something is the point of the
-    #  import - opting OUT is the secondary choice, not opting in.
+    # ON BY DEFAULT: seeing the texture on something is the point of the
+    # import - opting OUT is the secondary choice, not opting in.
     preview_sphere: BoolProperty(
         name="Preview on a Sphere",
         description="Also drop a UV sphere wearing each texture. Batch "
@@ -274,10 +274,10 @@ and how hot it burns, live in the .vmt. Use Import VMT for that."""
     )
 
     def invoke(self, context, event):
-        # THE TOGGLE LIVES IN THIS WINDOW, not in the sidebar. It is a choice
+        # THE TOGGLE LIVES in THIS WINDOW, not in the sidebar. It is a choice
         # about the import you are making right now, so it belongs next to the
         # file you are choosing - not as a panel button you have to remember
-        # to set first.
+        # to set first
         if not self.filepath:
             start = op_prefs.texture_dir()
             if start is not None:
@@ -307,8 +307,8 @@ and how hot it burns, live in the .vmt. Use Import VMT for that."""
             return {"CANCELLED"}
 
         collection = vtf_collection(context) if self.preview_sphere else None
-        # Append to the existing row instead of stacking a second batch on top
-        # of the first.
+        # append to the existing row instead of stacking a second batch on top
+        # of the first
         start_index = len(collection.objects) if collection is not None else 0
         done, failed, notes = [], [], []
         for i, path in enumerate(sorted(paths)):
@@ -338,8 +338,8 @@ and how hot it burns, live in the .vmt. Use Import VMT for that."""
                 try:
                     warp_mat = None
                     if self.shader == "REFRACT":
-                        # Forced refract: the picture is DATA, and the warp
-                        # builder makes the material that actually bends.
+                        #forced refract: the picture is DATA, and the warp
+                        #builder makes the material that actually bends
                         from ..tools import warp_nodes
                         try:
                             img.colorspace_settings.name = "Non-Color"
