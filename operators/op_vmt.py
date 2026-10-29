@@ -1,26 +1,26 @@
 # =============================================================================
-#  operators/op_vmt.py  -  import a MATERIAL, not just a texture
+# operators/op_vmt.py  -  import a MATERIAL, not just a texture
 # =============================================================================
 #
-#  WHY THIS EXISTS
+# why this exists
 #  ---------------
-#  The .vmt parser has been in `tools/vmt.py` for a while doing real work -
-#  it is how a .pcf import knows a beam is additive and fifteen times
-#  overbright - but there was NO WAY TO SEE IT WORK. It only ever ran deep
-#  inside a .pcf import, so when a material came out looking wrong there was
-#  nothing to point at.
+# The .vmt parser has been in `tools/vmt.py` for a while doing real work -
+# it is how a .pcf import knows a beam is additive and fifteen times
+# overbright - but there was NO WAY TO SEE IT WORK. It only ever ran deep
+# inside a .pcf import, so when a material came out looking wrong there was
+# nothing to point at
 #
-#  These two are the .vtf pair with the material step put back in front:
+# These two are the .vtf pair with the material step put back in front:
 #
-#      Import VTF                straight to the picture. No material.
-#      Import VTF + Build Sprite       ... and a probe emitter wearing it
-#      Import VMT                the CHAIN: .vmt -> $basetexture -> .vtf
-#      Import VMT + Build Sprite       ... and a probe built the way the
-#                                      material says to build it
+# Import VTF                straight to the picture. No material
+# Import VTF + Build Sprite       ... and a probe emitter wearing it
+# Import VMT                the CHAIN: .vmt -> $basetexture -> .vtf
+# Import VMT + Build Sprite       ... and a probe built the way the
+# material says to build it
 #
-#  The VMT half is the sophisticated one: `$additive` decides whether black is
-#  transparent, `$overbrightfactor` decides how hot it burns, and neither is
-#  guessable from the .vtf alone. Same picture, correct material.
+# The VMT half is the sophisticated one: `$additive` decides whether black is
+# transparent, `$overbrightfactor` decides how hot it burns, and neither is
+# guessable from the .vtf alone. Same picture, correct material
 # =============================================================================
 
 from pathlib import Path
@@ -53,7 +53,7 @@ def _roots(vmt_path=None):
         here = Path(vmt_path).parent
         found.insert(0, here)
         # ...and whatever `materials` folder it lives under, so a reference
-        # like "__hoovytube/generic/beam_bm" resolves from a deep .vmt.
+        # like "__hoovytube/generic/beam_bm" resolves from a deep .vmt
         for parent in Path(vmt_path).parents:
             if parent.name.lower() == "materials":
                 found.insert(1, parent)
@@ -79,8 +79,8 @@ def read_material(path):
     return chain
 
 
-#  The extension filter every builder that can take EITHER shares, so adding a
-#  format is one edit rather than four that drift apart.
+# the extension filter every builder that can take EITHER shares, so adding a
+# format is one edit rather than four that drift apart
 SOURCE_GLOB = "*.vmt;*.vtf"
 
 
@@ -197,8 +197,8 @@ looks wrong."""
     bl_label = "Import VMT"
     bl_options = {"REGISTER", "UNDO"}
 
-    #  ON BY DEFAULT: seeing the material on something is the point of the
-    #  import - opting OUT is the secondary choice, not opting in.
+    # ON BY DEFAULT: seeing the material on something is the point of the
+    # import - opting OUT is the secondary choice, not opting in.
     preview_sphere: BoolProperty(
         name="Preview on a Sphere",
         description="Also drop a UV sphere wearing the texture, in "
@@ -232,10 +232,10 @@ looks wrong."""
             self.report({"ERROR"}, f"{chain['vtf'].name}: {exc}")
             return {"CANCELLED"}
 
-        #  THE SHADER BUTTONS OVERRIDE THE FILE. Auto keeps the .vmt's own
-        #  family; Refract forces the warp build even on a sprite material
-        #  (default $refractamount when the file has none); UnlitGeneric /
-        #  SpriteCard force the emissive-sprite family even on a Refract.
+        #THE SHADER BUTTONS OVERRIDE THE FILE. Auto keeps the .vmt's own
+        #family; Refract forces the warp build even on a sprite material
+        #(default $refractamount when the file has none); UnlitGeneric /
+        #SpriteCard force the emissive-sprite family even on a Refract
         family = chain["material_class"]
         warp = chain["warp"]
         if self.shader == "REFRACT":
@@ -247,15 +247,15 @@ looks wrong."""
 
         warp_mat = None
         if family == "WARP":
-            # The picture is a normal map. Mark it as data even on the plain
-            # import, so whatever material gets built on it later starts
-            # right rather than subtly gamma-bent.
+            #the picture is a normal map. Mark it as data even on the plain
+            #import, so whatever material gets built on it later starts
+            #right rather than subtly gamma-bent
             try:
                 img.colorspace_settings.name = "Non-Color"
                 print(f"{TAG}  {img.name}: normal-map data -> Non-Color")
             except Exception as exc:
                 print(f"{TAG}  could not set Non-Color: {exc}")
-            # 🔴 BUILD THE SHADER, NOT JUST THE PICTURE. Importing a Refract
+            # 🔴 BUILD the SHADER, not JUST the PICTURE. Importing a Refract
             # material and leaving only a texture behind reads as "nothing
             # happened" - the whole point of the .vmt is the warp. This
             # registers the reference shader group and a material instancing
@@ -278,14 +278,14 @@ looks wrong."""
 
         if self.preview_sphere:
             try:
-                #  Auto on a sprite .vmt previews UNLIT - a Source sprite is
-                #  an emissive card, and lighting the preview like a plaster
-                #  ball misreads every additive sheet. The crop to a single
-                #  tile is driven by the .VTF's OWN sheet table (info["grid"]),
-                #  NOT the .vmt shader name: an UnlitGeneric spark sheet is a
-                #  sheet exactly as much as a SpriteCard one, and keying the
-                #  crop on shader == "spritecard" made every other sheet
-                #  preview wear the whole grid.
+                # auto on a sprite .vmt previews UNLIT - a Source sprite is
+                # an emissive card, and lighting the preview like a plaster
+                # ball misreads every additive sheet. The crop to a single
+                # tile is driven by the .VTF's OWN sheet table (info["grid"]),
+                # NOT the .vmt shader name: an UnlitGeneric spark sheet is a
+                # sheet exactly as much as a SpriteCard one, and keying the
+                # crop on shader == "spritecard" made every other sheet
+                # preview wear the whole grid.
                 if self.shader != "AUTO":
                     sphere_shader = self.shader
                 elif family == "WARP":
@@ -408,7 +408,7 @@ effect."""
         over = chain["overbright"] if self.use_material else 1.0
         add = chain["additive"] if self.use_material else False
         warp = chain["warp"] if self.use_material else None
-        #  The shader buttons override the file, same as Import VMT.
+        # the shader buttons override the file, same as Import VMT.
         if self.shader == "REFRACT":
             warp = warp or vmt_tool.warp_params(chain["values"])
         elif self.shader in ("UNLIT", "SHEET"):
@@ -429,7 +429,7 @@ effect."""
 
         if warp:
             # A refractive material renders as nothing in EEVEE until the
-            # scene-side ray-tracing switches are on. Flip them here, guarded.
+            # scene-side ray-tracing switches are on. Flip them here, guarded
             warp_nodes.configure_eevee_refraction(context.scene)
 
         seqs = info.get("sequences", [])

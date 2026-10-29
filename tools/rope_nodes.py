@@ -1,43 +1,43 @@
 # =============================================================================
-#  tools/rope_nodes.py  -  RENDER ROPE, the second Source sprite renderer
+# tools/rope_nodes.py  -  RENDER ROPE, the second Source sprite renderer
 # =============================================================================
 #
-#  WHAT A ROPE IS. render_animated_sprites draws one camera-facing card per
-#  particle. render_rope draws ONE CONTINUOUS RIBBON through all of them,
-#  oldest to newest - a trail, a beam, a lightning arc.
+# what A ROPE is. render_animated_sprites draws one camera-facing card per
+# particle. render_rope draws ONE CONTINUOUS RIBBON through all of them,
+# oldest to newest - a trail, a beam, a lightning arc
 #
-#  The logic here is a port of HoovyTube's rope prototype (v22), which had
-#  already solved the hard parts. The maths is kept exactly; what changed is
-#  the shape of the code - same DSL, same self-documenting frames, same
-#  attribute conventions as the animated-sprites renderer, so the two graphs
-#  read alike and share every operator upstream of them.
+# The logic here is a port of HoovyTube's rope prototype (v22), which had
+# already solved the hard parts. The maths is kept exactly; what changed is
+# the shape of the code - same DSL, same self-documenting frames, same
+# attribute conventions as the animated-sprites renderer, so the two graphs
+# read alike and share every operator upstream of them
 #
-#  THE PIPELINE
+# the pipeline
 #  ------------
-#      points, oldest -> newest        ordered by particle_id, which only ever
-#        |                             increases and never renumbers
-#      Points to Curves
-#        |
-#      Catmull-Rom + resolution        Source's subdivision_count is a FLOW
-#        |                             interpolation setting, not a Blender
-#        |                             edge subdivision
-#      store per-sample data           centre, camera-facing width axis, V
-#        |
-#      Curve to Mesh (2-point profile) quad strip, 2 vertices per sample
-#        |
-#      REBUILD THE RAILS EXPLICITLY    the one trick that makes it stable
-#        |
-#      one ribbon
+# points, oldest -> newest        ordered by particle_id, which only ever
+# |                             increases and never renumbers
+# Points to Curves
+# |
+# Catmull-Rom + resolution        Source's subdivision_count is a FLOW
+# |                             interpolation setting, not a Blender
+# |                             edge subdivision
+# store per-sample data           centre, camera-facing width axis, V
+# |
+# Curve to Mesh (2-point profile) quad strip, 2 vertices per sample
+# |
+# REBUILD the RAILS EXPLICITLY    the one trick that makes it stable
+# |
+# one ribbon
 #
-#  WHY THE RAILS ARE REBUILT. Curve To Mesh is kept ONLY as a topology bridge:
-#  it gives the right two vertices per sample and the right quads. Its own
-#  profile orientation comes from Blender's internal curve frame, which twists
-#  and rolls along the curve and made the ribbon flip. So the positions it
-#  produces are thrown away and each vertex is placed by hand:
+# why the RAILS are REBUILT. Curve To Mesh is kept only as a topology bridge:
+# it gives the right two vertices per sample and the right quads. Its own
+# profile orientation comes from Blender's internal curve frame, which twists
+# and rolls along the curve and made the ribbon flip. So the positions it
+# produces are thrown away and each vertex is placed by hand:
 #
-#      P = rope_center + rope_axis * (rope_u * 2 - 1) * half_width * radius
+# P = rope_center + rope_axis * (rope_u * 2 - 1) * half_width * radius
 #
-#  After that no curve-frame roll can rotate the visible ribbon at all.
+# After that no curve-frame roll can rotate the visible ribbon at all
 # =============================================================================
 
 import bpy
@@ -86,7 +86,7 @@ def build_rope_material(name, image, overbright=1.0, additive=False):
     v = _nd(nt, "ShaderNodeAttribute", (-900, 40), "rope_v  (along)")
     v.attribute_name = "rope_v"
     uv = _nd(nt, "ShaderNodeCombineXYZ", (-680, 120), "the ribbon's own UV")
-    _lk(nt, u, 2, uv, 0)          # Attribute outputs: Color, Vector, Fac, Alpha
+    _lk(nt, u, 2, uv, 0)          # attribute outputs: Color, Vector, Fac, Alpha
     _lk(nt, v, 2, uv, 1)
 
     tex = _nd(nt, "ShaderNodeTexImage", (-460, 120), "the trail texture")
@@ -116,15 +116,15 @@ def build_rope_material(name, image, overbright=1.0, additive=False):
     alpha = _nd(nt, "ShaderNodeAttribute", (-460, -360), "sprite_alpha")
     alpha.attribute_name = "sprite_alpha"
 
-    #  🔴 ON AN ADDITIVE SHEET, BLACK IS TRANSPARENT. Source draws
-    #  `$additive 1` by ADDING the texture to the frame, so a black pixel adds
-    #  nothing and disappears - which is why beam sheets ship with a solid-1
-    #  alpha channel, or none at all. The blackness IS the mask.
+    # 🔴 ON AN ADDITIVE SHEET, BLACK is TRANSPARENT. Source draws
+    # `$additive 1` by ADDING the texture to the frame, so a black pixel adds
+    # nothing and disappears - which is why beam sheets ship with a solid-1
+    # alpha channel, or none at all. The blackness is the mask.
     #
-    #  `beam_bm` is exactly that: read as alpha-blended it draws a black
-    #  rectangle with a bright streak inside it, which is the "for some reason
-    #  it removes the black in SFM and looks goofy on import" case. Nothing
-    #  mysterious - opacity has to come from LUMINANCE for these.
+    # `beam_bm` is exactly that: read as alpha-blended it draws a black
+    # rectangle with a bright streak inside it, which is the "for some reason
+    # it removes the black in SFM and looks goofy on import" case. Nothing
+    # mysterious - opacity has to come from LUMINANCE for these
     if additive:
         opacity = _nd(nt, "ShaderNodeRGBToBW", (-460, -80),
                       "additive: black IS transparent")
@@ -149,9 +149,9 @@ def build_rope_material(name, image, overbright=1.0, additive=False):
 
 def build_render_rope(mat, eye_group):
     """One continuous ribbon through every living particle."""
-    # Named after its material for the same reason as the sprite renderer:
+    # named after its material for the same reason as the sprite renderer:
     # the material is baked in, so one shared name means the second rope built
-    # wipes the first one's interface and drops its links.
+    # wipes the first one's interface and drops its links
     ng = _group(f"SP · RENDERER · render_rope · {mat.name}",
                 "GeometryNodeTree")
     _sock(ng, "Geometry", "OUTPUT", "NodeSocketGeometry")
@@ -163,10 +163,10 @@ def build_render_rope(mat, eye_group):
     _sock(ng, "Texture Offset", "INPUT", "NodeSocketFloat", 0.0)
     _sock(ng, "Texture Scroll Rate", "INPUT", "NodeSocketFloat", 0.0)
     _sock(ng, "Subdivision Count", "INPUT", "NodeSocketInt", 2, smin=0)
-    #  NOT SFM - the low-GPU stand-in, the same switch the card renderers
-    #  carry. A single ribbon IS cheap geometry, but its sheet shader is not -
-    #  scrolling texture sample, emission, alpha blend - so the proxy keeps
-    #  the ribbon and swaps the material for a flat per-system colour.
+    # NOT SFM - the low-GPU stand-in, the same switch the card renderers
+    # carry. A single ribbon IS cheap geometry, but its sheet shader is not -
+    # scrolling texture sample, emission, alpha blend - so the proxy keeps
+    # the ribbon and swaps the material for a flat per-system colour
     _sock(ng, "Proxy View", "INPUT", "NodeSocketBool", False)
     gi, go = _io(ng, (-1600, 0), (2200, 0))
     I = _gin(ng)
@@ -194,7 +194,7 @@ def build_render_rope(mat, eye_group):
         print(f"[HT_ROPE]  spline type: {exc}")
     _lk(ng, curve, 0, smooth, 0)
 
-    # subdivision_count <= 0 is CLAMPED TO 1 by Source, not treated as "off".
+    # subdivision_count <= 0 is CLAMPED TO 1 by Source, not treated as "off"
     cuts = _nd(ng, "ShaderNodeMath", (-1180, -180), "at least 1",
                role="RENDERER", operation="MAXIMUM")
     _lk(ng, gi, I["Subdivision Count"], cuts, 0)
@@ -207,14 +207,14 @@ def build_render_rope(mat, eye_group):
     _lk(ng, smooth, 0, res, 0)
     _lk(ng, cuts_i, 0, res, 2)
 
-    # ── 3. per-sample data, stored ON THE CURVE ──────────────────────────
+    #── 3. per-sample data, stored ON THE CURVE ──────────────────────────
     #
-    #  Everything the ribbon needs is written here, while we still have a
-    #  curve. Curve To Mesh then interpolates all of it onto the evaluated
-    #  samples for free - which is the entire reason the smooth ribbon has
-    #  smooth alpha, colour and width rather than per-particle steps.
-    # Built once by the caller and shared with the sprite renderer - see the
-    # note in build_render_animated_sprites.
+    #Everything the ribbon needs is written here, while we still have a
+    #curve. Curve To Mesh then interpolates all of it onto the evaluated
+    #samples for free - which is the entire reason the smooth ribbon has
+    #smooth alpha, colour and width rather than per-particle steps
+    #Built once by the caller and shared with the sprite renderer - see the
+    #note in build_render_animated_sprites
     eye = _nd(ng, "GeometryNodeGroup", (-1180, 420), "where the camera is",
               role="RENDERER")
     eye.node_tree = eye_group
@@ -236,29 +236,29 @@ def build_render_rope(mat, eye_group):
                 operation="CROSS_PRODUCT")
     _lk(ng, tangent, 0, cross, 0)
     _lk(ng, to_eye, 0, cross, 1)
-    # THE DEGENERATE CASE, AND IT IS VISIBLE. When the rope turns to run
-    # straight at the camera, the tangent and the direction to the eye line up
-    # and their cross product collapses towards zero. Normalising near-zero
-    # amplifies whatever noise is left, so the width axis spins, the ribbon
-    # pinches to nothing and flips over - the hourglass pinches you see if
-    # this guard is removed.
+    #THE DEGENERATE CASE, AND IT is VISIBLE. When the rope turns to run
+    #straight at the camera, the tangent and the direction to the eye line up
+    #and their cross product collapses towards zero. Normalising near-zero
+    #amplifies whatever noise is left, so the width axis spins, the ribbon
+    #pinches to nothing and flips over - the hourglass pinches you see if
+    #this guard is removed.
     #
-    # Falling back to an axis across the tangent and a world axis keeps a sane
-    # width exactly where the camera-facing rule has nothing to say.
+    #Falling back to an axis across the tangent and a world axis keeps a sane
+    #width exactly where the camera-facing rule has nothing to say
     #
-    # 🔴 AND THE FALLBACK MUST NOT DEGENERATE EITHER, which is the bug that
-    # made the rope INVISIBLE FROM ITS OWN SHIPPED DEFAULTS. The fallback used
-    # to be cross(tangent, world up) - fine for a rope running along the
-    # ground, ZERO for one running straight up. The defaults are gravity +Z
-    # and nothing sideways, so the rope goes straight up, so the fallback was
-    # exactly zero. Combined with either of the two ways the camera term
-    # collapses - no camera in the scene at all (the eye reads 0,0,0) or a
-    # camera directly overhead - the width axis came out (0,0,0), every rail
-    # landed on the centre line, and the ribbon was a zero-width sliver.
-    # It looked exactly like a broken material, again.
+    #🔴 AND THE FALLBACK must NOT DEGENERATE EITHER, which is the bug that
+    #made the rope INVISIBLE FROM its own SHIPPED DEFAULTS. The fallback used
+    #to be cross(tangent, world up) - fine for a rope running along the
+    #ground, ZERO for one running straight up. The defaults are gravity +Z
+    #and nothing sideways, so the rope goes straight up, so the fallback was
+    #exactly zero. Combined with either of the two ways the camera term
+    #collapses - no camera in the scene at all (the eye reads 0,0,0) or a
+    #camera directly overhead - the width axis came out (0,0,0), every rail
+    #landed on the centre line, and the ribbon was a zero-width sliver
+    #It looked exactly like a broken material, again.
     #
-    # A direction cannot be parallel to BOTH world up and world X, so taking
-    # whichever cross product is longer can never collapse.
+    #A direction can't be parallel to both world up and world X, so taking
+    #whichever cross product is longer can never collapse
     length = _nd(ng, "ShaderNodeVectorMath", (-760, 140), "how degenerate?",
                  role="RENDERER", operation="LENGTH")
     _lk(ng, cross, 0, length, 0)
@@ -366,11 +366,11 @@ def build_render_rope(mat, eye_group):
         stores.append(st)
         chain = st
 
-    # ── 4. the profile: a two-point line that carries rope_u ─────────────
+    #── 4. the profile: a two-point line that carries rope_u ─────────────
     #
-    #  The profile's own spline parameter IS the across-the-ribbon coordinate.
-    #  Storing it here is what makes it available after Curve To Mesh - there
-    #  is no other way to know which rail a mesh vertex belongs to.
+    #The profile's own spline parameter is the across-the-ribbon coordinate
+    #Storing it here is what makes it available after Curve To Mesh - there
+    #is no other way to know which rail a mesh vertex belongs to.
     line = _nd(ng, "GeometryNodeCurvePrimitiveLine", (-340, -900),
                "a 2-point profile", role="RENDERER", mode="POINTS")
     _sv(line, 0, (0.0, 0.0, 0.0))
@@ -515,10 +515,10 @@ sprite_color / sprite_radius attributes. Only this last step differs.
       store_u, ribbon, r_centre, r_axis, r_u, r_rad, side, half, wide, arm,
       rail, place, setmat] + stores)
 
-    #  PROXY VIEW - appended at the END so no existing node's birth-order
-    #  name shifts (hand-layout tables match by name first; see RULES).
-    #  Same ribbon, flat per-system colour instead of the sheet shader:
-    #  place -> stand-in material -> Switch against the real setmat.
+    # PROXY VIEW - appended at the END so no existing node's birth-order
+    # name shifts (hand-layout tables match by name first; see RULES)
+    # Same ribbon, flat per-system colour instead of the sheet shader:
+    # place -> stand-in material -> Switch against the real setmat.
     psm = _nd(ng, "GeometryNodeSetMaterial", (1840, -240),
               "the stand-in's own colour", role="RENDERER")
     _lk(ng, place, 0, psm, 0)

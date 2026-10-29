@@ -1,35 +1,35 @@
 ﻿# =============================================================================
-#  tools/sprite_nodes.py  -  VTF sprite sheet -> shader + geometry nodes
+# tools/sprite_nodes.py  -  VTF sprite sheet -> shader + geometry nodes
 # =============================================================================
 #
-#  THE ARCHITECTURAL DECISION (settled - see constitution/RULES.md)
+# THE ARCHITECTURAL DECISION (settled - see constitution/RULES.md)
 #  --------------------------------------------------------
-#  ONE material. The sequence is chosen PER PARTICLE by an attribute.
-#  Not one material per sequence: SFM's Sequence Random varies per particle,
-#  and you cannot randomise inside a single instanced batch without splitting
-#  the geometry every frame.
+# one material. The sequence is chosen PER PARTICLE by an attribute
+# Not one material per sequence: SFM's Sequence Random varies per particle,
+# and you cannot randomise inside a single instanced batch w/o splitting
+# the geometry every frame
 #
-#  THE PATTERN THAT WORKS - memorise it:
-#      store the attribute on the POINT domain
-#          -> Instance on Points
-#              -> shader reads it with attribute_type='INSTANCER'
-#  Storing on the INSTANCE domain does NOT work: 'INSTANCER' reads from the
-#  instancER (the point cloud), not from the instances.
+# THE PATTERN THAT WORKS - memorise it:
+# store the attribute on the POINT domain
+# -> Instance on Points
+# -> shader reads it with attribute_type='INSTANCER'
+# Storing on the INSTANCE domain does not work: 'INSTANCER' reads from the
+# instancER (the point cloud), not from the instances
 #
-#  LOOPING IS PER SEQUENCE AND IT IS IN THE FILE
+# LOOPING IS PER SEQUENCE AND IT IS IN THE FILE
 #  ---------------------------------------------
-#  Each sequence carries a clamp flag (1 = play once and hold, 0 = loop).
-#  Across 518 real sheets: 895 sequences clamp, 167 loop. In that corpus no
-#  single file mixed the two, but the format stores it per sequence so we
-#  honour it per sequence.
+# Each sequence carries a clamp flag (1 = play once and hold, 0 = loop)
+# Across 518 real sheets: 895 sequences clamp, 167 loop. In that corpus no
+# single file mixed the two, but the format stores it per sequence so we
+# honour it per sequence
 #
-#  OTHER TRAPS, ALL PAID FOR IN BLOOD
-#    * Mesh Grid's UV is an ANONYMOUS output socket, not a named layer. Store
-#      it as "UVMap" or the shader has no UVs, samples one transparent corner
-#      texel, and the sprite is INVISIBLE - which looks like a broken material.
-#    * Set Material must go on the instance SOURCE, before Instance on Points.
-#    * NEVER guess socket indices. In 5.2 Random Value is Min=0 Max=1 ID=2
-#      Seed=3 for EVERY data type, and Compare(INT) exposes only A=0, B=1.
+# other traps, all paid for in blood
+# * Mesh Grid's UV is an ANONYMOUS output socket, not a named layer. Store
+# it as "UVMap" or the shader has no UVs, samples one transparent corner
+# texel, and the sprite is INVISIBLE - which looks like a broken material
+# * Set Material must go on the instance SOURCE, before Instance on Points
+# * never guess socket indices. In 5.2 Random Value is Min=0 Max=1 ID=2
+# Seed=3 for EVERY data type, and Compare(INT) exposes only A=0, B=1
 # =============================================================================
 
 import colorsys
@@ -38,17 +38,17 @@ import zlib
 import bpy
 
 
-# ── role colours ─────────────────────────────────────────────────────────────
-#  ONE HUE PER ROLE at a shared saturation and value, so a graph reads as one
-#  system rather than a paint chart. The wheel positions and the reasoning
-#  behind them live in tools/layout.py: warm hues are the things that CHANGE,
-#  cool hues are the things that are READ, and green sits between them for
-#  values decided once at birth.
+#── role colours ─────────────────────────────────────────────────────────────
+#ONE HUE PER ROLE at a shared saturation and value, so a graph reads as one
+#system rather than a paint chart. The wheel positions and the reasoning
+#behind them live in tools/layout.py: warm hues are the things that CHANGE,
+#cool hues are the things that are READ, and green sits between them for
+#values decided once at birth.
 #
-#  A FRAME gets the same hue a shade darker. Same hue keeps the section and
-#  its nodes visibly related; less value makes the frame read as the container
-#  BEHIND them rather than as another node - a relationship that survives in
-#  greyscale, which a hue difference would not.
+#A FRAME gets the same hue a shade darker. Same hue keeps the section and
+#its nodes visibly related; less value makes the frame read as the container
+#BEHIND them rather than as another node - a relationship that survives in
+#greyscale, which a hue difference would not.
 from . import layout                                            # noqa: E402
 
 ROLE = layout.role_colours()
@@ -64,12 +64,12 @@ def _group(name, kind):
     ng.nodes.clear()
     for item in list(ng.interface.items_tree):
         ng.interface.remove(item)
-    #  🔴 A CLEARED GROUP IS AN UNTIDIED GROUP. Custom properties survive the
-    #  clear, and tidy() stamps "ht_tidied" to guard its non-idempotent
-    #  passes - so REBUILDING a system (importing the same .pcf twice, or
-    #  create-ing the same texture again) kept the stale stamp, tidy skipped
-    #  everything, and the second build opened as a raw heap with the hand
-    #  layout nowhere in sight. Fresh nodes deserve a fresh layout pass.
+    # 🔴 A CLEARED GROUP IS AN UNTIDIED GROUP. Custom properties survive the
+    # clear, and tidy() stamps "ht_tidied" to guard its non-idempotent
+    # passes - so REBUILDING a system (importing the same .pcf twice, or
+    # create-ing the same texture again) kept the stale stamp, tidy skipped
+    # everything, and the second build opened as a raw heap with the hand
+    # layout nowhere in sight. Fresh nodes deserve a fresh layout pass.
     for stamp in ("ht_tidied", "ht_hand_layout"):
         if stamp in ng:
             del ng[stamp]
@@ -187,9 +187,9 @@ def proxy_material(seed_name):
     Rebuilt idempotently on every call, so proxies made by an older version
     of this function pick up fixes the next time anything builds."""
     key = f"HTP Proxy · {seed_name}"
-    #  Three INDEPENDENT slices of the hash: similar names can land on near-
-    #  identical hues (two cyans did, in testing), so saturation and value
-    #  vary too and near-misses still read apart.
+    # Three INDEPENDENT slices of the hash: similar names can land on near-
+    # identical hues (two cyans did, in testing), so saturation and value
+    # vary too and near-misses still read apart
     h = zlib.crc32(seed_name.encode("utf-8"))
     hue = (h % 997) / 997.0
     sat = 0.55 + ((h >> 10) % 256) / 255.0 * 0.35      # 0.55 .. 0.90
@@ -314,7 +314,7 @@ def build_sheet_uv_group(name, cols, rows, width=0, height=0):
                 operation="DIVIDE")
     _sv(inv_r, 0, 1.0)
     _lk(ng, gi, 2, inv_r, 1)
-    #  Tile MINUS one texel (half each side): the linear-safe sampling window.
+    # Tile MINUS one texel (half each side): the linear-safe sampling window.
     tile_u = _nd(ng, "ShaderNodeMath", (-440, 320),
                  "tile - 1 texel  (linear-safe)", role="SEQUENCE",
                  operation="SUBTRACT")
@@ -348,7 +348,7 @@ def build_sheet_uv_group(name, cols, rows, width=0, height=0):
     _sv(offy, 0, 1.0)
     _lk(ng, rdiv, 0, offy, 1)
 
-    #  ...and slide half a texel INTO the tile, matching the shrunk window.
+    #...and slide half a texel INTO the tile, matching the shrunk window
     ox = _nd(ng, "ShaderNodeMath", (300, 140), "+ half texel", role="SEQUENCE",
              operation="ADD")
     _lk(ng, offx, 0, ox, 0)
@@ -422,10 +422,10 @@ def rect_sequence_table(sheet, width, height):
         start = len(rects)
         for f in frames:
             u0, v0, u1, v1 = f["uv"]
-            rects.append((u0 + inset_u,               # offset X
-                          (1.0 - v1) + inset_v,       # offset Y  (V flipped)
-                          (u1 - u0) - 2.0 * inset_u,  # scale  X
-                          (v1 - v0) - 2.0 * inset_v)) # scale  Y
+            rects.append((u0 + inset_u,               #offset X
+                          (1.0 - v1) + inset_v,       #offset Y  (V flipped)
+                          (u1 - u0) - 2.0 * inset_u,  #scale  X
+                          (v1 - v0) - 2.0 * inset_v)) #scale  Y
         table.append((start, len(frames), bool(seq["loops"])))
     if not rects:
         return [(0, 1, False)], [(0.0, 0.0, 1.0, 1.0)]
@@ -461,7 +461,7 @@ def build_rect_uv_group(name, rects=None, width=0, height=0):
                   "slide + shrink onto the rect", role="RENDERER",
                   vector_type="POINT")
     _lk(ng, uv, 0, mapping, 0)
-    _lk(ng, gi, 0, mapping, 1)     # Corner -> Location
+    _lk(ng, gi, 0, mapping, 1)     # corner -> Location
     _lk(ng, gi, 1, mapping, 3)     # Size   -> Scale
     _lk(ng, mapping, 0, go, 0)
     note(ng, "PER-FRAME RECT  ·  the geometry already chose it", "SEQUENCE", """
@@ -508,16 +508,16 @@ def build_invisible_material(name):
 
 
 EDITOR_DRAWS = 2
-#  ↑ THE SECOND DRAW, AND WHEN IT HAPPENS - measured twice:
-#  0.24.0: calibration kit 1's one-particle tiles fit only as two layers - but
-#  every material in kit 1 was used by two systems (a single and a double).
-#  0.24.2: kit 3 gave each tile its OWN material and they fit as ONE layer
-#  (2.5-4.4 grey levels; two layers were 20-26 off), except the two tiles that
-#  shared one material: two layers again (2.6). Trails were drawn once even
-#  when three of them shared a material. So: a sprite system whose material
-#  another sprite system in the same effect also uses is drawn TWICE, every
-#  other system ONCE. The .pcf importer counts that per effect and hands each
-#  material its Draws; this is the value for the shared case.
+# ↑ THE SECOND DRAW, and WHEN IT HAPPENS - measured twice:
+# 0.24.0: calibration kit 1's one-particle tiles fit only as two layers - but
+# every material in kit 1 was used by two systems (a single and a double)
+# 0.24.2: kit 3 gave each tile its OWN material and they fit as ONE layer
+# (2.5-4.4 grey levels; two layers were 20-26 off), except the two tiles that
+# shared one material: two layers again (2.6). Trails were drawn once even
+# when three of them shared a material. So: a sprite system whose material
+# another sprite system in the same effect also uses is drawn twice, every
+# other system once. The .pcf importer counts that per effect and hands each
+# material its Draws; this is the value for the shared case
 
 
 def draws_tag(draws):
@@ -697,12 +697,12 @@ def build_sprite_material(name, image, cols, rows, uv_group, overbright=1.0,
     a_alpha = _nd(nt, "ShaderNodeAttribute", (-900, -60), "sprite_alpha",
                   role="OPERATOR", attribute_type="INSTANCER",
                   attribute_name="sprite_alpha")
-    # 🔴 COLOR RANDOM DID NOTHING FOR MONTHS AND THIS IS WHY: the geometry
-    # stored `sprite_color` on every particle, faithfully, and the material
-    # never read it. Nothing errored - the colour was computed, baked and
-    # thrown away one node short of the shader. The rope tinted correctly the
-    # whole time because it has its OWN material, which does read it, and
-    # that difference is what made it look like a geometry bug.
+    #🔴 COLOR RANDOM DID NOTHING FOR MONTHS AND this IS why: the geometry
+    #stored `sprite_color` on every particle, faithfully, and the material
+    #never read it. Nothing errored - the colour was computed, baked and
+    #thrown away one node short of the shader. The rope tinted correctly the
+    #whole time because it has its own material, which does read it, and
+    #that difference is what made it look like a geometry bug
     a_col = _nd(nt, "ShaderNodeAttribute", (-900, -280), "sprite_color",
                 role="INITIALIZER", attribute_type="INSTANCER",
                 attribute_name="sprite_color")
@@ -721,34 +721,34 @@ def build_sprite_material(name, image, cols, rows, uv_group, overbright=1.0,
                      "sprite_rect_scale", role="SEQUENCE",
                      attribute_type="INSTANCER",
                      attribute_name="sprite_rect_scale")
-        _lk(nt, a_rmin, 1, uvg, 0)      # Vector out -> Corner
+        _lk(nt, a_rmin, 1, uvg, 0)      # vector out -> Corner
         _lk(nt, a_rscl, 1, uvg, 1)      # Vector out -> Size
     else:
         _lk(nt, a_frame, 2, uvg, 0)
         _sv(uvg, 1, float(cols))
         _sv(uvg, 2, float(rows))
 
-    #  LINEAR, NOT CLOSEST. Closest made every sprite visibly pixelated next
-    #  to SFM, which filters its sheets bilinearly - a 256px flare that looks
-    #  smooth in Source turned into minecraft here. Linear is safe because
-    #  the sheet-UV group insets the sampling window half a texel, so a
-    #  boundary sample can never average in the neighbouring tile.
+    #LINEAR, not CLOSEST. Closest made every sprite visibly pixelated next
+    #to SFM, which filters its sheets bilinearly - a 256px flare that looks
+    #smooth in Source turned into minecraft here. Linear is safe bc
+    #the sheet-UV group insets the sampling window half a texel, so a
+    #boundary sample can never average in the neighbouring tile.
     tex = _nd(nt, "ShaderNodeTexImage", (-400, 160), "the sheet",
               role="RENDERER", interpolation="Linear", extension="CLIP")
     tex.image = image
     _lk(nt, uvg, 0, tex, 0)
 
     # ── FRAME BLENDING - the spritecard crossfade ────────────────────────
-    #  SFM never snaps between sheet frames: each frame FADES into the next,
-    #  which is what keeps an 8 fps smoke sheet looking liquid instead of
-    #  stroboscopic. The geometry bakes which tile comes next
-    #  (sprite_frame_next, same loop/hold law as the current one) and how
-    #  far between them the particle is (sprite_frame_blend, 0..1); here the
-    #  sheet is simply sampled a second time at the next tile and mixed.
+    # SFM never snaps between sheet frames: each frame FADES into the next,
+    # which is what keeps an 8 fps smoke sheet looking liquid instead of
+    # stroboscopic. The geometry bakes which tile comes next
+    # (sprite_frame_next, same loop/hold law as the current one) and how
+    # far between them the particle is (sprite_frame_blend, 0..1); here the
+    # sheet is simply sampled a second time at the next tile and mixed
     #
-    #  "Blend Frames (0/1)" is the switch - ON by default, set it to 0 in
-    #  this material to snap like a plain frame-hold. Systems built before
-    #  this existed read a missing blend attribute as 0 and are unchanged.
+    # "Blend Frames (0/1)" is the switch - ON by default, set it to 0 in
+    # this material to snap like a plain frame-hold. Systems built before
+    # this existed read a missing blend attribute as 0 and are unchanged
     a_next = _nd(nt, "ShaderNodeAttribute", (-900, 380), "sprite_frame_next",
                  role="SEQUENCE", attribute_type="INSTANCER",
                  attribute_name="sprite_frame_next")
@@ -799,8 +799,8 @@ def build_sprite_material(name, image, cols, rows, uv_group, overbright=1.0,
     _lk(nt, tex2, 1, falpha, 3)
 
     # ── SHADING: SFM's own blend maths, measured (0.24.0) ────────────────
-    #  Everything from here to the output is spritecard_output() - the
-    #  measured SpriteCard formula, shared with every card material.
+    # Everything from here to the output is spritecard_output() - the
+    # measured SpriteCard formula, shared with every card material
     bl = blend or legacy_blend(overbright, additive)
     shading = spritecard_output(nt, fcol.outputs[2], falpha.outputs[0],
                                 a_col.outputs[0], a_alpha.outputs[2], bl,
@@ -932,7 +932,7 @@ def build_sprite_emitter_group(name, mat, sequences, cols, rows):
     _lk(ng, spread, 0, spread_s, 0)
     _lk(ng, gi, IN["Spread"], spread_s, 3)
 
-    # sequence -> (start, count, loops) lookup, built from the VTF's own table
+    #sequence -> (start, count, loops) lookup, built from the VTF's own table
     s0, c0, l0 = sequences[0]
     start_n = _nd(ng, "ShaderNodeValue", (-260, 120), "seq 0 start",
                   role="SEQUENCE")
@@ -1060,13 +1060,13 @@ def build_sprite_emitter_group(name, mat, sequences, cols, rows):
     _sv(st_alpha, 2, "sprite_alpha")
     _lk(ng, st_frame, 0, st_alpha, 0)
     _lk(ng, alpha, 0, st_alpha, 3)
-    # 🔴 THE MATERIAL MULTIPLIES BY sprite_color, SO IT MUST EXIST. When the
+    # 🔴 the MATERIAL MULTIPLIES BY sprite_color, SO IT must EXIST. When the
     # material learned Color Random (tex colour x sprite_color), the RAS
     # emitters started storing the attribute - and this probe emitter did
     # not, so an unstored attribute read back (0,0,0) and every probe card
     # rendered BLACK. The shapes were perfect, which made it look like a
     # filtering or alpha bug. The probe has no Color Random, so its tint is
-    # constant white - but it has to be STORED white, not left missing.
+    # constant white - but it has to be STORED white, not left missing
     st_col = _nd(ng, "GeometryNodeStoreNamedAttribute", (1240, -360),
                  "sprite_color = white  (POINT domain!)", role="INITIALIZER",
                  data_type="FLOAT_COLOR", domain="POINT")

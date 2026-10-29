@@ -1,10 +1,18 @@
 # Source Particle Import
+### the particle half of HoovyTools - its twin, [SFM Session Importer](https://github.com/hoovytubeofficial/HoovyTools-SFMSessionImport-Blender), brings the whole session
 
-Source Filmmaker and Source Engine particle effects (`.pcf`) in Blender, as editable geometry-nodes systems.
+Source Filmmaker and Source Engine particle effects (`.pcf`) in Blender, as editable geometry-nodes systems. The
+two add-ons share one sidebar tab; with the twin installed, a session's effects arrive with the rest of the shot.
 
-![Imported SFM particles in a Blender render](docs/preview.gif)
+![A HoovyTube effect, imported and playing in Blender](docs/preview.gif)
 
-*(full quality: [particles.mp4](https://github.com/hoovytubeofficial/HoovyTools-ParticleImport-Blender/releases/download/v3.0.0/particles.mp4))*
+*"crash landing - salve - explosive", one of HoovyTube's own effects, built with BUILD THIS SYSTEM and played in
+the viewport.*
+
+**Video tutorial:** [Import Particles into Blender](https://www.youtube.com/watch?v=-NGdPxKTsJA) on SourceFilmmakerTube -
+and for the twin, [SFM Session to BLENDER Importer](https://www.youtube.com/watch?v=SGEVbgdZYaY).
+
+[![Import Particles into Blender - video tutorial](https://img.youtube.com/vi/-NGdPxKTsJA/hqdefault.jpg)](https://www.youtube.com/watch?v=-NGdPxKTsJA)
 
 **[Download 3.0.0](https://github.com/hoovytubeofficial/HoovyTools-ParticleImport-Blender/releases/download/v3.0.0/HoovyTools-ParticleImport-Blender-3.0.0.zip)** - then drag the zip onto Blender. ([All releases](https://github.com/hoovytubeofficial/HoovyTools-ParticleImport-Blender/releases))
 
@@ -30,12 +38,14 @@ with it are still some of the best-looking ones around. They deserve a renderer 
 
 <table>
 <tr>
-<td><img src="docs/pi-import.png" width="260" alt="Import tab"></td>
-<td><img src="docs/pi-tools.png" width="260" alt="Tools tab"></td>
-<td><img src="docs/pi-dev.png" width="260" alt="Dev tab"></td>
+<td><img src="docs/pi-import.png" width="200" alt="Import tab"></td>
+<td><img src="docs/pi-props.png" width="200" alt="Props tab"></td>
+<td><img src="docs/pi-tools.png" width="200" alt="Tools tab"></td>
+<td><img src="docs/pi-dev.png" width="200" alt="Dev tab"></td>
 </tr>
 <tr>
 <td align="center">Import</td>
+<td align="center">Props - the built system's variables</td>
 <td align="center">Tools</td>
 <td align="center">Dev</td>
 </tr>
@@ -45,16 +55,16 @@ with it are still some of the best-looking ones around. They deserve a renderer 
 
 <table>
 <tr>
-<td><a href="https://github.com/hoovytubeofficial/HoovyTools-ParticleImport-Blender/releases/download/v3.0.0/pcf-import-demo.mp4"><img src="docs/poster-pcf-import-demo.jpg" width="260" alt="Importing an effect"></a></td>
-<td><a href="https://github.com/hoovytubeofficial/HoovyTools-ParticleImport-Blender/releases/download/v3.0.0/pcf-preview.mp4"><img src="docs/poster-pcf-preview.jpg" width="260" alt="PCF Preview and the node graph"></a></td>
-<td><a href="https://github.com/hoovytubeofficial/HoovyTools-ParticleImport-Blender/releases/download/v3.0.0/pcf-render-rope.mp4"><img src="docs/poster-pcf-render-rope.jpg" width="260" alt="A rope effect"></a></td>
+<td><img src="docs/ui-pcf-import-demo.gif" width="400" alt="Importing an effect in Blender"></td>
+<td><img src="docs/ui-pcf-render-rope.gif" width="400" alt="A rope effect and its sidebar"></td>
 </tr>
 <tr>
-<td align="center">Importing an effect</td>
-<td align="center">Preview cards, node graph</td>
-<td align="center">Render Rope</td>
+<td align="center">Importing an effect (<a href="https://github.com/hoovytubeofficial/HoovyTools-ParticleImport-Blender/releases/download/v3.0.0/pcf-import-demo.mp4">mp4</a>)</td>
+<td align="center">Render Rope, at double speed (<a href="https://github.com/hoovytubeofficial/HoovyTools-ParticleImport-Blender/releases/download/v3.0.0/pcf-render-rope.mp4">mp4</a>)</td>
 </tr>
 </table>
+
+Also: [PCF Preview cards and the node graph](https://github.com/hoovytubeofficial/HoovyTools-ParticleImport-Blender/releases/download/v3.0.0/pcf-preview.mp4) (mp4).
 
 ## Install
 

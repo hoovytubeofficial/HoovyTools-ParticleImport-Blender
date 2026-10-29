@@ -6,7 +6,7 @@ KEYS = ("sfm_usermod", "pcf_dir", "texture_dir", "trail_dir", "fancy_layouts", "
         "feedback")
 ABOUT = ("Source Particle Import settings. Edit, save, then Dev > Wiring > Reload Config (or restart Blender). "
          "An empty folder = found by itself. feedback: POPUP, REPORT or QUIET.")
-#  set while the file is being applied, so the preferences' update callbacks do not write it back mid-way
+# set while the file is being applied, so the preferences' update callbacks don't write it back mid-way
 _BUSY = {"on": False}
 
 
@@ -67,7 +67,7 @@ def apply(prefs):
                 if value != now:
                     setattr(prefs, k, value)
                 done.append(k)
-            except (TypeError, ValueError) as exc:               # an Errors value that does not exist
+            except (TypeError, ValueError) as exc:               #an Errors value that does not exist
                 bad.append("%s: %s" % (k, exc))
     finally:
         _BUSY["on"] = False

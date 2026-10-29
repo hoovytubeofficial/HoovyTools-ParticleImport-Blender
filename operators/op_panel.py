@@ -8,14 +8,14 @@ from . import op_prefs
 
 
 # =============================================================================
-#  Section help - the Guide, cut up and delivered where it applies
+# Section help - the Guide, cut up and delivered where it applies
 # =============================================================================
-#  One operator, one topic string per section. The docstring cannot be the
-#  documentation here because the text depends on WHICH (?) you are hovering,
-#  so description() composes the tooltip per topic - and clicking pops the
-#  same lines up for reading at leisure. Texts are short on purpose: a
-#  section's help says what the section IS; each button's own tooltip still
-#  carries the full story of that button.
+# One operator, one topic string per section. The docstring can't be the
+# documentation here because the text depends on which (?) you are hovering,
+# so description() composes the tooltip per topic - and clicking pops the
+# same lines up for reading at leisure. Texts are short on purpose: a
+# section's help says what the section is; each button's own tooltip still
+# carries the full story of that button
 
 _HELP = {
     "IMPORT": ("Particle Import", (
@@ -198,8 +198,8 @@ _HELP = {
 
 
 class HTP_OT_SectionHelp(bpy.types.Operator):
-    #  NO static docstring on purpose - description() below is the tooltip,
-    #  composed per topic, so hovering a (?) already explains its section.
+    # no static docstring on purpose - description() below is the tooltip,
+    # composed per topic, so hovering a (?) already explains its section
     bl_idname = "htp.section_help"
     bl_label = "What is this section?"
     bl_options = {"INTERNAL"}
@@ -214,8 +214,8 @@ class HTP_OT_SectionHelp(bpy.types.Operator):
 
     def execute(self, context):
         title, lines = _HELP.get(self.topic, (self.topic, ()))
-        #  🔴 popup_menu with NO WINDOW is a hard CRASH (EXCEPTION_ACCESS_
-        #  VIOLATION), not an error - background/headless runs must skip it.
+        # 🔴 popup_menu with no WINDOW is a hard CRASH (EXCEPTION_ACCESS_
+        # VIOLATION), not an error - background/headless runs must skip it.
         if bpy.app.background or context.window is None:
             print(f"[HT_PARTICLE]  {title}: " + " ".join(lines))
             return {"FINISHED"}
@@ -228,8 +228,8 @@ class HTP_OT_SectionHelp(bpy.types.Operator):
         return {"FINISHED"}
 
 
-#  3.0.0: what each tool's status slot shows - "ok" after a run that finished, "warn" after one that failed.
-#  Filled by operators/__init__.py's guard around every operator's execute; draw() only reads it.
+# 3.0.0: what each tool's status slot shows - "ok" after a run that finished, "warn" after one that failed
+# Filled by operators/__init__.py's guard around every operator's execute; draw() only reads it
 RUNS = {}
 
 
@@ -302,8 +302,8 @@ class HTP_PT_Main(Panel):
         dev.ui_units_x = 1.6
         dev.prop_enum(p, "active_tab", "DEV", text="")
         layout.separator()
-        #  .get with a fallback: a file saved on a removed tab reads back an empty enum value, and a KeyError
-        #  at draw time would blank the whole panel.
+        # .get with a fallback: a file saved on a removed tab reads back an empty enum value, and a KeyError
+        # at draw time would blank the whole panel
         {"IMPORT": self._import,
          "TOOLS": self._tools,
          "DEV": self._dev,
@@ -313,7 +313,7 @@ class HTP_PT_Main(Panel):
 
     # ── Import ───────────────────────────────────────────────────────────
     def _import(self, layout, context, p):
-        #  ONE Build button, drawn inside draw_import_ui.
+        # ONE Build button, drawn inside draw_import_ui.
         pi.draw_import_ui(layout, context, compact=True)
 
     _TOOLS = (
@@ -415,18 +415,18 @@ class HTP_PT_Main(Panel):
 
     # ── Properties ───────────────────────────────────────────────────────
     #
-    #  THE MODIFIER, RE-HUNG IN THE SIDEBAR. Click a built system's mesh and
-    #  every variable appears here, organised by SFM section exactly like the
-    #  screenshot that asked for it: System Properties at the top, then
-    #  Renderer / Operator / Initializer / Emitter / Children / Force
-    #  Generator / Constraint, each with its palette icon (the same _HUES
-    #  the node groups are painted with). Only ENABLED operators are listed
-    #  - imports switch off everything the file does not author, so what you
-    #  see is what the effect actually runs; "Show Disabled" reveals the
-    #  whole catalogue. Empty sections stay visible but greyed, so the
-    #  anatomy always reads the same.
+    # the MODIFIER, RE-HUNG IN the SIDEBAR. Click a built system's mesh and
+    # every variable appears here, organised by SFM section exactly like the
+    # screenshot that asked for it: System Properties at the top, then
+    # Renderer / Operator / Initializer / Emitter / Children / Force
+    # Generator / Constraint, each with its palette icon (the same _HUES
+    # the node groups are painted with). Only ENABLED operators are listed
+    # - imports switch off everything the file does not author, so what you
+    # see is what the effect actually runs; "Show Disabled" reveals the
+    # whole catalogue. Empty sections stay visible but greyed, so the
+    # anatomy always reads the same.
     #
-    #  DRAW-TIME RULE STILL APPLIES: this reads and draws, never mutates.
+    # DRAW-TIME RULE STILL APPLIES: this reads and draws, never mutates.
 
     _SECTIONS = (("RENDERER", "sys_properties_renderer"),
                  ("OPERATOR", "sys_properties_operator"),
@@ -490,7 +490,7 @@ class HTP_PT_Main(Panel):
             parent = getattr(it, "parent", None)
             p_name = getattr(parent, "name", "") if parent else ""
             if kind == "PANEL":
-                if p_name:            # an operator panel inside a section
+                if p_name:            #an operator panel inside a section
                     entry = (it, [])
                     sub_panels.setdefault(p_name, []).append(entry)
                     panel_home[it.name + "//" + p_name] = entry[1]
@@ -515,13 +515,13 @@ class HTP_PT_Main(Panel):
         row.prop(p, "props_show_disabled", text="", icon="HIDE_OFF",
                  toggle=True)
 
-        #  Every panel id carries the fold GENERATION: Minimize All bumps it,
-        #  the ids change, and every panel starts over closed. Blender offers
-        #  no other way to close a layout.panel from code.
+        # every panel id carries the fold GENERATION: Minimize All bumps it,
+        # the ids change, and every panel starts over closed. Blender offers
+        # no other way to close a layout.panel from code
         gen = f"htp_pp{p.props_fold_gen}_"
         minimized = p.props_fold_gen > 0
 
-        # ── System Properties + Control Points up top ────────────────────
+        #── System Properties + Control Points up top ────────────────────
         hdr, body = layout.panel(gen + "sys", default_closed=minimized)
         hdr.label(text="System Properties",
                   **icon_id("sys_properties", "PROPERTIES"))
@@ -537,15 +537,15 @@ class HTP_PT_Main(Panel):
             for it in top_sockets.get("CONTROL POINTS", []):
                 self._draw_socket(col, mod, it)
 
-        # ── the SFM sections, in the screenshot's order ──────────────────
-        #  VISUAL GRAMMAR: a SECTION is a flat header row - icon, TITLE, its
-        #  [+] - while every OPERATOR inside it is a boxed CARD. Two shapes,
-        #  two meanings, readable without measuring any indentation.
+        #── the SFM sections, in the screenshot's order ──────────────────
+        #VISUAL GRAMMAR: a SECTION is a flat header row - icon, TITLE, its
+        #[+] - while every OPERATOR inside it's a boxed CARD. Two shapes,
+        #two meanings, readable w/o measuring any indentation
         for section, icon_key in self._SECTIONS:
             entries = sub_panels.get(section, [])
             shown = []
             for panel_item, sockets in entries:
-                #  the panel's ENABLE toggle is the socket named like it
+                #the panel's ENABLE toggle is the socket named like it
                 toggle = next((s for s in sockets
                                if s.name == panel_item.name), None)
                 on = True
@@ -561,8 +561,8 @@ class HTP_PT_Main(Panel):
             lab = hrow.row()
             lab.enabled = bool(shown)
             lab.label(text=section.title(), **icon_id(icon_key, "NODETREE"))
-            #  the ADD button stays live even when the section is empty -
-            #  an empty section is exactly where you want to add something
+            #the ADD button stays live even when the section is empty -
+            #an empty section is exactly where you want to add something
             add = hrow.operator("htp.props_add_operator", text="",
                                 icon="ADD")
             add.section = section
@@ -593,8 +593,8 @@ class HTP_PT_Main(Panel):
                         continue
                     self._draw_socket(col, mod, s)
 
-    #  The Guide tab's draw method lived here. Its prose now ships through
-    #  _HELP at the top of this file, one section at a time.
+    # The Guide tab's draw method lived here. Its prose now ships thru
+    # _HELP at the top of this file, one section at a time
 
 
 class HTP_OT_PropsMinimizeAll(bpy.types.Operator):
@@ -622,8 +622,8 @@ than animating shut.)"""
         return {"FINISHED"}
 
 
-#  The search popup's enum items MUST stay referenced from Python or Blender
-#  garbage-collects the strings mid-draw. Module-level on purpose.
+# the search popup's enum items must stay referenced from Python or Blender
+# garbage-collects the strings mid-draw. Module-level on purpose.
 _ADD_ITEMS = [("__none__", "(nothing to add)", "")]
 
 
@@ -725,8 +725,8 @@ proxied while the one you are tuning stays real"""
         if not hosts:
             self.report({"ERROR"}, "No built particle systems in this file")
             return {"CANCELLED"}
-        #  The first system's state decides the direction, so mixed states
-        #  converge instead of flapping.
+        #the first system's state decides the direction, so mixed states
+        #converge instead of flapping
         mod = HTP_PT_Main._system_modifier(hosts[0])
         current = False
         for it in mod.node_group.interface.items_tree:

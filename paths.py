@@ -1,24 +1,24 @@
 # =============================================================================
-#  paths.py  -  find the SFM install so the file browsers open THERE
+# paths.py  -  find the SFM install so the file browsers open THERE
 # =============================================================================
 #
-#  Nobody wants to click through Downloads to reach
-#      ...\SourceFilmmaker\game\usermod\materials
-#  every single time. This module finds the usermod folder and hands the
-#  browsers a sensible starting directory.
+# Nobody wants to click through Downloads to reach
+# ...\SourceFilmmaker\game\usermod\materials
+# every single time. This module finds the usermod folder and hands the
+# browsers a sensible starting directory
 #
-#  SEARCH ORDER (all cheap existence checks - no recursive scanning)
-#    1. an explicit override (the add-on preferences - operators/op_prefs.py
-#       is where preferences and this module meet; nothing here reads bpy)
-#    2. Steam's own library list: registry -> libraryfolders.vdf -> every
-#       library's steamapps\common\SourceFilmmaker
-#    3. common hand-rolled layouts on every fixed drive (C:, D:, E: ...)
-#    4. nothing found -> return None and the browser falls back to Blender's
-#       default (last-used directory / Downloads)
+# SEARCH ORDER (all cheap existence checks - no recursive scanning)
+# 1. an explicit override (the add-on preferences - operators/op_prefs.py
+# is where preferences and this module meet; nothing here reads bpy)
+# 2. Steam's own library list: registry -> libraryfolders.vdf -> every
+# library's steamapps\common\SourceFilmmaker
+# 3. common hand-rolled layouts on every fixed drive (C:, D:, E: ...)
+# 4. nothing found -> return None and the browser falls back to Blender's
+# default (last-used directory / Downloads)
 #
-#  bpy-free on purpose: pure path logic, testable outside Blender. Results are
-#  cached because this is called from operator invoke(), not draw(), but a
-#  rescan is one refresh() away.
+# bpy-free on purpose: pure path logic, testable outside Blender. Results are
+# cached because this is called from operator invoke(), not draw(), but a
+# rescan is one refresh() away.
 # =============================================================================
 
 import os
@@ -29,7 +29,7 @@ from pathlib import Path
 _REL_SFM = Path("steamapps") / "common" / "SourceFilmmaker"
 _REL_USERMOD = Path("game") / "usermod"
 
-# Layouts people actually use, relative to a drive root.
+# layouts people actually use, relative to a drive root
 _DRIVE_PATTERNS = (
     Path("Program Files (x86)") / "Steam",
     Path("Program Files") / "Steam",
@@ -79,7 +79,7 @@ def _library_folders(steam_root):
             text = vdf.read_text(encoding="utf-8", errors="ignore")
         except Exception:
             continue
-        # Entries look like:   "path"   "E:\\SteamLibrary"
+        # entries look like:   "path"   "E:\\SteamLibrary"
         for m in re.finditer(r'"path"\s*"([^"]+)"', text):
             p = Path(m.group(1).replace("\\\\", "\\"))
             if p.is_dir():
@@ -168,23 +168,23 @@ def subdir(kind, override=None):
 
 
 # =============================================================================
-#  WHERE THE TEXTURES YOU ACTUALLY USE LIVE
+# WHERE THE TEXTURES YOU ACTUALLY USE LIVE
 # =============================================================================
-#  `usermod/materials` is the honest generic answer and the wrong practical
-#  one - it is a folder of folders, and the working set is one level down. So
-#  every texture browser walks a SEARCH ORDER, most specific first, and opens
-#  at the first entry that exists. Same list for all three, so the browser
-#  never opens somewhere different depending on which button you pressed.
+# `usermod/materials` is the honest generic answer and the wrong practical
+# one - it's a folder of folders, and the working set is one level down. So
+# every texture browser walks a SEARCH ORDER, most specific first, and opens
+# at the first entry that exists. Same list for all three, so the browser
+# never opens somewhere different depending on which button you pressed
 #
-#  Relative to `usermod`.
+# Relative to `usermod`.
 
 _TEXTURE_DIRS = (
     Path("materials") / "__hoovytube" / "explosion",
     Path("materials"),
 )
 
-# Sparks, tracers and beams live somewhere else again - a trail browser that
-# opens on the explosion sheets is a browser you immediately navigate out of.
+#Sparks, tracers and beams live somewhere else again - a trail browser that
+#opens on the explosion sheets is a browser you immediately navigate out of
 _TRAIL_TEXTURE_DIRS = (
     Path("materials") / "__hoovytube" / "electricity",
     Path("materials") / "__hoovytube",
@@ -223,7 +223,7 @@ def texture_dir(override=None):
 def materials_dir(override=None):
     # Kept as the plain "usermod/materials" answer. Texture browsers should
     # call texture_dir() instead - it starts one level deeper, where the
-    # textures being worked on actually are.
+    # textures being worked on actually are
     return subdir("materials", override)
 
 
@@ -237,12 +237,12 @@ def refresh():
 
 # ── where trail textures actually live ───────────────────────────────────────
 #
-#  A rope needs a beam/trail texture, and those are not scattered evenly - they
-#  sit in three known places. The browser opens at the first one that EXISTS,
-#  most specific first, so the common case is one click instead of ten.
+# A rope needs a beam/trail texture, and those are not scattered evenly - they
+# sit in three known places. The browser opens at the first one that EXISTS,
+# most specific first, so the common case is one click instead of ten.
 #
-#  Relative to the SourceFilmmaker install (game/ is its own root here, so
-#  these are not under usermod).
+# Relative to the SourceFilmmaker install (game/ is its own root here, so
+# these are not under usermod)
 
 _TRAIL_DIRS = (
     Path("tf") / "materials" / "effects" / "doomsday",

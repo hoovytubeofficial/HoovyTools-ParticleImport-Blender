@@ -1,28 +1,28 @@
 # =============================================================================
-#  tools/pcf_icons.py  -  FOLDER ICONS for particle packs  (bpy-free)
+# tools/pcf_icons.py  -  FOLDER ICONS for particle packs  (bpy-free)
 # =============================================================================
 #
-#  A SIMPLIFIED ICO STUDIO. HoovyTube's own icon maker
-#  (Ico Studio V5) fills a shape with a
-#  picture, shades it with the shape's own light and tints the rim. The pack
-#  folders under usermod\particles already wear its glass ORB - so a pack icon
-#  here is that orb (images/preview/preview_orb.png, taken out of Ico Studio V5
-#  unchanged), filled with the pack's best particle render, its rim in the
-#  pack's designated colour. No badges, labels or ratings: just the orb.
+# A SIMPLIFIED ICO STUDIO. HoovyTube's own icon maker
+# (Ico Studio V5) fills a shape with a
+# picture, shades it with the shape's own light and tints the rim. The pack
+# folders under usermod\particles already wear its glass ORB - so a pack icon
+# here is that orb (images/preview/preview_orb.png, taken out of Ico Studio V5
+# unchanged), filled with the pack's best particle render, its rim in the
+# pack's designated colour. No badges, labels or ratings: just the orb.
 #
-#      orb_icon(face, rim)        the 512 px master          (Ico Studio render())
-#      save_ico(img, path)        16, 24, 32, 48, 64, 128, 256 px in one .ico
-#      icon_assignment(folder)    what desktop.ini already points at, if anything
-#      assign_folder_icon(...)    set it - the old desktop.ini and attributes are
-#                                 saved first (Ico Studio's backup, byte for byte)
-#      restore_folder_icon(json)  put a folder back exactly as the backup says
-#      make_folder_icons(...)     PROCESS ENTIRE FOLDER's last step: one icon per
-#                                 folder DIRECTLY under the processed folder (the
-#                                 cap: particles\<pack> gets one, particles\<pack>
-#                                 \<sub> does not); applied only to folders that
-#                                 have no icon yet unless told otherwise
+# orb_icon(face, rim)        the 512 px master          (Ico Studio render())
+# save_ico(img, path)        16, 24, 32, 48, 64, 128, 256 px in one .ico
+# icon_assignment(folder)    what desktop.ini already points at, if anything
+# assign_folder_icon(...)    set it - the old desktop.ini and attributes are
+# saved first (Ico Studio's backup, byte for byte)
+# restore_folder_icon(json)  put a folder back exactly as the backup says
+# make_folder_icons(...)     PROCESS ENTIRE FOLDER's last step: one icon per
+# folder DIRECTLY under the processed folder (the
+# cap: particles\<pack> gets one, particles\<pack>
+# \<sub> does not); applied only to folders that
+# have no icon yet unless told otherwise
 #
-#  NEVER OVERWRITES: an icon name that is taken gets " v2", " v3" ...
+# never OVERWRITES: an icon name that's taken gets " v2", " v3" ...
 # =============================================================================
 
 import configparser
@@ -115,8 +115,8 @@ def face_score(face, strength=0.0):
     rgb = np.asarray(im, dtype=np.float32) / 255.0
     lum = rgb.mean(axis=2)
     mean, spread = float(lum.mean()), float(lum.std())
-    #  clipped in ANY channel - a full-frame yellow or pink flash never turns
-    #  white, but it is just as flat
+    # clipped in any channel - a full-frame yellow or pink flash never turns
+    # white, but it's just as flat
     clipped = float((rgb.max(axis=2) > 0.94).mean())
     flat = max(0.05, 1.0 - 2.5 * max(0.0, clipped - 0.12))
     return (mean ** 0.5) * (0.1 + spread / 0.2) * (0.6 + float(strength or 0.0)) * flat

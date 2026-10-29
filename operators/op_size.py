@@ -7,7 +7,7 @@ from bpy.types import Operator
 
 from ..tools import htlog, pcf_size
 
-#  The last answer, for the Tools tab (draw() reads, never computes).
+# the last answer, for the Tools tab (draw() reads, never computes).
 LAST = {"pcf": "", "system": "", "lines": [], "total": None}
 
 
@@ -39,7 +39,7 @@ THIS FEATURE WAS ADDED IN VERSION 3.0.0 AND IS IN EXPERIMENTAL STAGE"""
         name="Include Children",
         description="Count the child systems too - off sizes the chosen system on its own",
         default=True)
-    #  Set by scripts (the Text Editor tool); the panel leaves them to the Import tab.
+    # set by scripts (the Text Editor tool); the panel leaves them to the Import tab
     pcf_path: StringProperty(options={"HIDDEN", "SKIP_SAVE"})
     system: StringProperty(options={"HIDDEN", "SKIP_SAVE"})
     filepath: StringProperty(subtype="FILE_PATH", options={"HIDDEN", "SKIP_SAVE"})

@@ -1,33 +1,33 @@
 # =============================================================================
-#  _core/pcf.py  -  read a .pcf and figure out its particle-system hierarchy
+# _core/pcf.py  -  read a .pcf and figure out its particle-system hierarchy
 # =============================================================================
 #
-#  WHAT A .pcf IS (plain words)
+# WHAT A .pcf IS (plain words)
 #  ----------------------------
-#  A .pcf is a DMX file. Its root has an attribute "particleSystemDefinitions",
-#  which is a big list of particle systems (DmeParticleSystemDefinition). Each
-#  system can spawn CHILD systems - that is the parent/child tree You see in
-#  SFM's particle picker. The child links live on each system's "children"
-#  attribute: a list of little DmeParticleChild links, each pointing at another
-#  system (the "child") with an optional "delay".
+# A .pcf is a DMX file. Its root has an attribute "particleSystemDefinitions",
+# which is a big list of particle systems (DmeParticleSystemDefinition). Each
+# system can spawn CHILD systems - that's the parent/child tree You see in
+# SFM's particle picker. The child links live on each system's "children"
+# attribute: a list of little DmeParticleChild links, each pointing at another
+# system (the "child") with an optional "delay"
 #
-#  So to build the picker we:
-#    1. grab every system definition,
-#    2. read each one's "children" links,
-#    3. whoever is never someone else's child = a ROOT (a top-level effect).
+# So to build the picker we:
+# 1. grab every system definition,
+# 2. read each one's "children" links,
+# 3. whoever is never someone else's child = a ROOT (a top-level effect)
 #
-#  This module has NO Blender imports on purpose - it is pure data, so it can be
-#  unit-tested outside Blender and reused anywhere.
+# This module has no Blender imports on purpose - it is pure data, so it can be
+# unit-tested outside Blender and reused anywhere
 #
-#  NOTE: exact attribute names ("children", "child", "delay") follow the Source
-#  DmeParticleSystemDefinition spec. Validate against a real .pcf; if a pack
-#  uses odd names we widen the lookup in _child_links().
+# NOTE: exact attribute names ("children", "child", "delay") follow the Source
+# DmeParticleSystemDefinition spec. Validate against a real .pcf; if a pack
+# uses odd names we widen the lookup in _child_links()
 # =============================================================================
 
 from . import datamodel
 
 
-# ── loading ──────────────────────────────────────────────────────────────────
+#── loading ──────────────────────────────────────────────────────────────────
 
 def load_pcf(path):
     """Load a .pcf and return the datamodel. Raises on unreadable files."""
@@ -115,7 +115,7 @@ def build_hierarchy(dm):
     """
     defs = get_system_defs(dm)
 
-    # Build a stable name for each element (handle duplicates).
+    # Build a stable name for each element (handle duplicates)
     name_of = {}
     seen = {}
     order = []
@@ -193,38 +193,38 @@ def get_renderers(system):
 
 # ── control points ───────────────────────────────────────────────────────────
 #
-#  HOW MANY EMPTIES DOES THIS EFFECT NEED?
-#  A Source particle system is driven by CONTROL POINTS - numbered transforms
-#  the operators read ("Position Within Sphere Random" spawns around CP 0,
-#  "Movement Lock to Control Point" follows CP 3, and so on). To rebuild an
-#  effect we must create one empty per control point it actually references.
+# how many empties does this effect need?
+# A Source particle system is driven by CONTROL POINTS - numbered transforms
+# the operators read ("Position Within Sphere Random" spawns around CP 0,
+# "Movement Lock to Control Point" follows CP 3, and so on). To rebuild an
+# effect we must create one empty per control point it actually references
 #
-#  There is no header listing them: you find them by walking every operator /
-#  initializer / emitter / renderer / force / constraint and reading the
-#  integer attributes that name a control point.
+# There is no header listing them: you find them by walking every operator /
+# initializer / emitter / renderer / force / constraint and reading the
+# integer attributes that name a control point
 #
-#  NAMING IS A MESS - verified against 60 real .pcf files:
-#      control_point_number                     (by far the most common)
-#      Control Point Number / control point number
-#      start control point number / end control point number
-#      First..Fourth Control Point Number
-#      orientation control point / tint control point
-#      Visibility Proxy Input Control Point Number
-#      cull_control_point                       (system level)
+# NAMING IS A MESS - verified against 60 real .pcf files:
+# control_point_number                     (by far the most common)
+# Control Point Number / control point number
+# start control point number / end control point number
+# First..Fourth Control Point Number
+# orientation control point / tint control point
+# Visibility Proxy Input Control Point Number
+# cull_control_point                       (system level)
 #
-#  TRAPS:
-#    * -1 means "not used". It appears more than a thousand times across those
-#      files; counting it would invent a control point that isn't there.
-#    * Several attributes contain "control point" but are NOT indices -
-#      "...Parent", "...Location", "control point movement distance tolerance",
-#      "scale emission to used control points" (a flag), "...field". Those are
-#      excluded by name.
+# TRAPS:
+# * -1 means "not used". It appears more than a thousand times across those
+# files; counting it would invent a control point that isn't there
+# * Several attributes contain "control point" but are not indices -
+# "...Parent", "...Location", "control point movement distance tolerance",
+# "scale emission to used control points" (a flag), "...field". Those are
+# excluded by name
 # =============================================================================
 
 _CP_SUBELEMENT_KEYS = ("operators", "initializers", "emitters", "renderers",
                        "forces", "constraints")
 
-# If a normalised attribute name contains any of these it is NOT a CP index.
+# if a normalised attribute name contains any of these it's NOT a CP index.
 _CP_NAME_EXCLUDE = ("parent", "location", "tolerance", "distribute",
                     "scale emission", "field", "offset for")
 
@@ -290,7 +290,7 @@ def _cp_values_in(element):
 
     if span_count and span_count > 1:
         base = first_for_span or 0
-        # the span occupies base .. base + count - 1
+        #the span occupies base .. base + count - 1
         yield f"{span_count_attr} (span of {span_count})", base + span_count - 1
 
 

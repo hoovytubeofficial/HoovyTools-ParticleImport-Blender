@@ -1,21 +1,21 @@
 # =============================================================================
-#  operators/op_node_to_code.py  -  NODE TO CODE, four one-click flavours
+# operators/op_node_to_code.py  -  NODE TO CODE, four one-click flavours
 # =============================================================================
 #
-#  Wraps tools/gn_to_python.py. FOUR buttons, each doing exactly one thing -
-#  no options, no flags to misread:
+# Wraps tools/gn_to_python.py. FOUR buttons, each doing exactly one thing -
+# no options, no flags to misread:
 #
-#      Geometry Nodes  (textures IN the script)   htp.ntc_geo_tex
-#      Geometry Nodes  (no textures)              htp.ntc_geo_notex
-#      Shader Nodes    (textures IN the script)   htp.ntc_mat_tex
-#      Shader Nodes    (no textures)              htp.ntc_mat_notex
+# Geometry Nodes  (textures in the script)   htp.ntc_geo_tex
+# Geometry Nodes  (no textures)              htp.ntc_geo_notex
+# Shader Nodes    (textures IN the script)   htp.ntc_mat_tex
+# Shader Nodes    (no textures)              htp.ntc_mat_notex
 #
-#  Geometry = select the effect's object (or open its group in a Geometry
-#  Nodes editor). Shader = select an object wearing the material. The rebuild
-#  script lands on the clipboard AND in a Text block; for 600+ node monsters
-#  the clipboard can truncate - run the Text block instead.
+# Geometry = select the effect's object (or open its group in a Geometry
+# Nodes editor). Shader = select an object wearing the material. The rebuild
+# script lands on the clipboard AND in a Text block; for 600+ node monsters
+# the clipboard can truncate - run the Text block instead.
 #
-#  The module is reloaded on every run so edits take effect without a restart.
+# The module is reloaded on every run so edits take effect w/o a restart
 # =============================================================================
 
 import importlib
@@ -32,13 +32,13 @@ def _tools():
 
 class _NTCBase(Operator):
     bl_options = {"REGISTER"}
-    SCOPE = "GEO"          # or "MATERIAL"
+    SCOPE = "GEO"          #or "MATERIAL"
     EMBED = True
 
     def execute(self, context):
         g = _tools()
         if self.SCOPE == "GEO":
-            # Refuse loudly instead of claiming a copy that never happened.
+            # refuse loudly instead of claiming a copy that never happened
             try:
                 tree = g._active_tree()
             except Exception as exc:

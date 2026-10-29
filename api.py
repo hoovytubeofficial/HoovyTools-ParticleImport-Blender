@@ -1,28 +1,28 @@
 # =============================================================================
-#  api.py  -  the STABLE surface for other add-ons (HoovyTools, scripts)
+# api.py  -  the STABLE surface for other add-ons (HoovyTools, scripts)
 # =============================================================================
 #
-#  HoovyTools imports SFM sessions; sessions reference particle effects; this
-#  module is how it (or any script) builds one without touching the sidebar
-#  UI or scene.htp state. Nothing here reads or writes the import panel.
+# HoovyTools imports SFM sessions; sessions reference particle effects; this
+# module is how it (or any script) builds one w/o touching the sidebar
+# UI or scene.htp state. Nothing here reads or writes the import panel
 #
-#      api = siblings.submodule("particles", "api")   # from HoovyTools
-#      (the folder name has hyphens now, so `import X` cannot spell it)
+# api = siblings.submodule("particles", "api")   # from HoovyTools
+# (the folder name has hyphens now, so `import X` cannot spell it)
 #
-#      names = api.list_systems(r"...\explosion.pcf")
-#      made  = api.build_effect(bpy.context, r"...\explosion.pcf",
-#                               system=names["roots"][0],
-#                               start_time=2.5,      # scene seconds
-#                               time_scale=1.0)      # 0.5 = half speed
+# names = api.list_systems(r"...\explosion.pcf")
+# made  = api.build_effect(bpy.context, r"...\explosion.pcf",
+# system=names["roots"][0],
+# start_time=2.5,      # scene seconds
+# time_scale=1.0)      # 0.5 = half speed
 #
-#  `build_effect` returns the list of created objects (hosts, the control
-#  root, anchors). The effect lands in __HoovyTools__/<system name>/ unless a
-#  collection is handed in.
+# `build_effect` returns the list of created objects (hosts, the control
+# root, anchors). The effect lands in __HoovyTools__/<system name>/ unless a
+# collection is handed in
 #
-#  ⚠️ THE CONTRACT: this module's signatures and the SYSTEM PROPERTIES socket
-#  names ("Time Offset", "Time Scale", "Scale", "Seed", "Max Particles") are
-#  the stable integration surface. Everything else in this add-on may be
-#  refactored without notice - reach through api.py, not around it.
+# ⚠️ the CONTRACT: this module's signatures and the SYSTEM PROPERTIES socket
+# names ("Time Offset", "Time Scale", "Scale", "Seed", "Max Particles") are
+# the stable integration surface. Everything else in this add-on may be
+# refactored w/o notice - reach through api.py, not around it
 # =============================================================================
 
 from pathlib import Path

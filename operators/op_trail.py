@@ -1,24 +1,24 @@
 ﻿# =============================================================================
-#  operators/op_trail.py  -  Create Render Sprite Trail
+# operators/op_trail.py  -  Create Render Sprite Trail
 # =============================================================================
 #
-#  The same system as the other two renderers - same emitter, same
-#  initializers, same operators - with the last step swapped for ONE CARD PER
-#  PARTICLE, stretched backwards along the way that particle is travelling.
+# The same system as the other two renderers - same emitter, same
+# initializers, same operators - with the last step swapped for one CARD PER
+# PARTICLE, stretched backwards along the way that particle is travelling
 #
-#  THE DIALOG IS THE EXPLANATION. The four numbers that decide how a trail
-#  looks are three different quantities with almost the same names, so they
-#  are grouped and labelled by what they ARE:
+# the DIALOG is the EXPLANATION. The four numbers that decide how a trail
+# looks are three different quantities with almost the same names, so they
+# are grouped and labelled by what they are:
 #
-#      Trail Length Min / Max    SECONDS of the particle's own travel
-#      Min / Max Length          HAMMER UNITS - a clamp on the answer
-#      Radius                    HAMMER UNITS - the HALF width
+# Trail Length Min / Max    SECONDS of the particle's own travel
+# Min / Max Length          HAMMER UNITS - a clamp on the answer
+# Radius                    HAMMER UNITS - the HALF width
 #
-#  The full reasoning is in tools/trail_nodes.py and inside the node group.
+# The full reasoning is in tools/trail_nodes.py and inside the node group
 #
-#  Sequences come along for free: a trail sheet with several sparks on it is
-#  read the same way an animated sprite's is, and Sequence Random picks one
-#  per particle. That is why the browser opens where the spark sheets are.
+# Sequences come along for free: a trail sheet with several sparks on it is
+# read the same way an animated sprite's is, and Sequence Random picks one
+# per particle. That is why the browser opens where the spark sheets are.
 # =============================================================================
 
 from pathlib import Path
@@ -252,9 +252,9 @@ it comes out that way rather than as streaks on black cards."""
             return {"CANCELLED"}
 
         seqs = info["sequences"]
-        # Say what the sheet actually held. A trail sheet with one sequence is
-        # fine, but if you picked it expecting several sparks you want to know
-        # now rather than after wondering why they all look the same.
+        #say what the sheet actually held. A trail sheet with one sequence is
+        #fine, but if you picked it expecting several sparks you want to know
+        #now rather than after wondering why they all look the same.
         msg = (f"{path.stem}: {info['cols']}x{info['rows']} sheet, "
                f"{len(seqs)} sequence(s), "
                f"{info['control_points']} control point(s) -> {host.name} "

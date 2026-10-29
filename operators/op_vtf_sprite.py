@@ -1,23 +1,23 @@
 # =============================================================================
-#  operators/op_vtf_sprite.py  -  IMPORT VTF SPRITE
+# operators/op_vtf_sprite.py  -  IMPORT VTF SPRITE
 # =============================================================================
 #
-#  A PROBE built on the REAL SYSTEM. Pick a .vtf and this stands up a small
-#  `build_ras` system - the same sectioned, note-carrying, tidied geo-node
-#  graph as Create RAS and a .pcf import - with gentle probe defaults:
-#  particles rise, fade in and out, and each plays a RANDOM sequence from the
-#  VTF's own table, at its own looping behaviour.
+# A PROBE built on the REAL SYSTEM. Pick a .vtf and this stands up a small
+# `build_ras` system - the same sectioned, note-carrying, tidied geo-node
+# graph as Create RAS and a .pcf import - with gentle probe defaults:
+# particles rise, fade in and out, and each plays a RANDOM sequence from the
+# VTF's own table, at its own looping behaviour
 #
-#  🔴 THE PROBE USED TO BE ITS OWN HAND-ROLLED EMITTER GRAPH, and that was a
-#  mistake paid for twice: the first graph a user ever opened (from the
-#  Import buttons) was the one with no sections, no notes and no layout, and
-#  every lesson the system emitters learned (sprite_color!) had to be
-#  re-learned here. ONE builder now. The probe is a thin values-preset.
+# 🔴 the PROBE USED TO BE ITS own HAND-ROLLED EMITTER GRAPH, and that was a
+# mistake paid for twice: the first graph a user ever opened (from the
+# Import buttons) was the one with no sections, no notes and no layout, and
+# every lesson the system emitters learned (sprite_color!) had to be
+# re-learned here. ONE builder now. The probe is a thin values-preset.
 #
-#  LOOPING IS READ FROM THE FILE, per sequence (1 = clamp/hold, 0 = loop).
-#  It is not a user toggle, because it is not a preference - it is data.
+# LOOPING is READ FROM the FILE, per sequence (1 = clamp/hold, 0 = loop)
+# It isn't a user toggle, bc it isn't a preference - it's data
 #
-#  Everything lands in  __HoovyTools__ / VTF Sprite Tests / <texture name>.
+# Everything lands in  __HoovyTools__ / VTF Sprite Tests / <texture name>.
 # =============================================================================
 
 from pathlib import Path
@@ -84,8 +84,8 @@ def build_sprite_probe(context, path, particles=12, lifespan=5.0,
     from .op_ras import build_ras
     stem = Path(path).stem
     values = {
-        # The probe promises `particles` on screen NOW, not after one full
-        # lifespan of ramp-up - so the steady stream STARTS ONE LIFESPAN
+        # the probe promises `particles` on screen NOW, not after one full
+        # lifespan of ramp-up - so the steady stream STARTS one LIFESPAN
         # BEFORE FRAME 0. By the first frame anyone looks at, a full
         # population is already alive and being replaced, exactly like the
         # old always-full probe. (The stateless emitter is a pure function
@@ -220,8 +220,8 @@ Sprite is the one that knows better."""
         if not path.is_file():
             self.report({"ERROR"}, f"Not a file: {path}")
             return {"CANCELLED"}
-        #  The shader buttons force a family on this material-less probe;
-        #  Refract gets Source's default $refractamount, said in the tooltip.
+        #the shader buttons force a family on this material-less probe;
+        #Refract gets Source's default $refractamount, said in the tooltip.
         warp = None
         if self.shader == "REFRACT":
             warp = {"refract_amount": 0.2, "blur_amount": 0.0,
@@ -238,7 +238,7 @@ Sprite is the one that knows better."""
 
         if warp:
             # A refractive material renders as nothing in EEVEE until the
-            # scene-side ray-tracing switches are on.
+            # scene-side ray-tracing switches are on
             from ..tools import warp_nodes
             warp_nodes.configure_eevee_refraction(context.scene)
 

@@ -15,13 +15,13 @@ WINFONTS = os.path.join(os.environ.get("WINDIR", r"C:\Windows"), "Fonts")
 FONT_FILES = ("bahnschrift.ttf", "segoeui.ttf", "arial.ttf")
 ACRONYMS = {"hd", "sd", "hdr", "4k", "8k", "vr", "fx", "sfx", "vfx", "hl2", "tf2",
             "sfm", "lod", "ui", "cp", "dx", "fps", "lcm"}
-#  0.26.3: words with their own capitals ("(hoovytube)" -> "(HoovyTube)").
+#0.26.3: words with their own capitals ("(hoovytube)" -> "(HoovyTube)")
 BRANDS = {"hoovytube": "HoovyTube", "skibidipack": "SkibidiPack"}
 
 INK = (244, 229, 198)          # the cream of the titles, description and path
 INK_DIM = (178, 182, 190)      # the second title on a neutral chip
-FRAME = (234, 214, 178)        # the thin outer border without a folder colour
-STEEL = ((86, 91, 103), (38, 41, 49))      # the neutral plate (a grey effect)
+FRAME = (234, 214, 178)        # the thin outer border w/o a folder colour
+STEEL = ((86, 91, 103), (38, 41, 49))      #the neutral plate (a grey effect)
 
 CARD_EXTS = (".png", ".jpg", ".jpeg", ".webp")
 JPG_QUALITY = 92
@@ -30,8 +30,8 @@ COLORS_FILE = "_preview colors.json"
 DEFAULT_ICON_DIR = r"C:\Icons\SFM\Particles"
 DEFAULT_EXCLUDE = ("___Developer___", "__Developer__")
 
-#  What the button / a folder run / a settings file can choose. None or "auto"
-#  = let the automation decide.
+# what the button / a folder run / a settings file can choose. None or "auto"
+# = let the automation decide.
 STYLE_KEYS = ("title", "subtitle", "description", "title_color", "folder_color", "format",
               "bars", "bar_alpha")
 JOB_KEYS = ("moment", "system", "grid", "view_yaw", "view_pitch", "zoom", "cp0_yaw", "res",
@@ -50,7 +50,7 @@ def _title_case(text):
         if not part.strip() or part in ("-", "_"):
             out.append(part)
             continue
-        #  brackets stay where they are; the word inside them is what gets cased
+        # brackets stay where they are; the word inside them is what gets cased
         lead, core, trail = re.match(r"^([(\[]*)(.*?)([)\]]*)$", part).groups()
         low = core.lower()
         if not core:
@@ -79,9 +79,9 @@ def titles_from_name(pcf_path):
     m = re.search(r"\(([^()]*)\)", stem)
     if m:
         main, sub = stem[:m.start()], "(" + _title_case(m.group(1).strip()) + ")"
-        #  0.26.3: a name that STARTS with its bracket ("(add) - industrial
-        #  sparks flashing smoke") has its title AFTER it - before, the card
-        #  showed the raw file name.
+        # 0.26.3: a name that STARTS with its bracket ("(add) - industrial
+        # sparks flashing smoke") has its title after it - before, the card
+        # showed the raw file name
         if not main.strip().strip("_- "):
             main = stem[m.end():]
     else:
@@ -811,7 +811,7 @@ def _compose_glass(render, title, subtitle=None, description=None, path_main=Non
         else:
             _glass_text(img, (size / 2, (foot[1] + foot[3]) / 2 + s(2)), path_main, f_path, INK, glow=pglow)
 
-    # the frame: a thin line in the folder colour with a soft glow either side
+    #the frame: a thin line in the folder colour with a soft glow either side
     img.alpha_composite(_glow_layer((size, size), lambda d, f: d.rectangle([0, 0, size - 1, size - 1],
                                                                            outline=f, width=s(10)),
                                     frame + (200,), s(14)))
@@ -849,7 +849,7 @@ def _compose_solid(render, title, subtitle=None, description=None, path_main=Non
         return int(round(v * S))
 
     frame = shade(folder_rgb, s_mul=0.45, v=0.95) if folder_rgb else FRAME
-    #  pure black inside, like the renders - anything else shows the picture's edge
+    #pure black inside, like the renders - anything else shows the picture's edge
     img = Image.new("RGBA", (size, size), (0, 0, 0, 255))
     # the frame: a thin border with a dark vignette just inside it
     vign = Image.new("L", (size, size), 0)
@@ -873,7 +873,7 @@ def _compose_solid(render, title, subtitle=None, description=None, path_main=Non
     else:
         _plate(img, title_box, fade=s(220), seed=3)
         tglow = (240, 196, 130, 120)
-    #  the title FITS its band: smaller for a long name, two lines for a very long one
+    # the title FITS its band: smaller for a long name, two lines for a very long one
     inner = (title_box[2] - title_box[0]) - s(120)
     tcx, tcy = (title_box[0] + title_box[2]) / 2, (title_box[1] + title_box[3]) / 2 + s(4)
     f_title = _fit(title, s(166), s(104), inner)
@@ -1094,7 +1094,7 @@ def start_worker(blender, scripts_dir, addon, worker, pcf_paths, work_dir, syste
         json.dump(spec, f, indent=1)
     env = dict(os.environ)
     if scripts_dir:
-        env["BLENDER_USER_SCRIPTS"] = scripts_dir     # the SAME copy of this add-on
+        env["BLENDER_USER_SCRIPTS"] = scripts_dir     # the same copy of this add-on
     log = open(os.path.join(work_dir, "worker%s.log" % tag), "w", encoding="utf-8")
     proc = subprocess.Popen([blender, "-b", "--factory-startup", "-P", worker, "--", job_path],
                             stdout=log, stderr=subprocess.STDOUT, env=env,
@@ -1166,9 +1166,9 @@ class Batch:
         self.keep = keep_renders
         self.log = log
         self.max_restarts = max_restarts
-        #  0.26.2: a worker that reports nothing for this long is stopped - one
-        #  pathological effect (the library run had one take 8 minutes and die)
-        #  must not hold a worker all night. It then counts as a crash below.
+        #0.26.2: a worker that reports nothing for this long is stopped - one
+        #pathological effect (the library run had one take 8 minutes and die)
+        #must not hold a worker all night. It then counts as a crash below
         self.stall = float(stall_minutes or 0) * 60.0
         self.slots = []            # [{"proc", "spec", "jobs", "seen", "last"}]
         self.results = {}          # pcf -> dict
@@ -1241,8 +1241,8 @@ class Batch:
         except Exception as exc:
             rec["face_error"] = str(exc)
         if self.keep == "jpg":
-            #  0.26.3: KEPT as JPGs beside the run (about 0.5 MB each), so a new
-            #  card look is a recompose, not another night of rendering.
+            #0.26.3: KEPT as JPGs beside the run (about 0.5 MB each), so a new
+            #card look is a recompose, not another night of rendering
             try:
                 kd = os.path.join(self.work, "renders")
                 os.makedirs(kd, exist_ok=True)

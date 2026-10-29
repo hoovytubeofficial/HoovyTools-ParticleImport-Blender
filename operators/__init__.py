@@ -55,7 +55,7 @@ def _guard(cls):
 
     @functools.wraps(fn)
     def execute(self, context):
-        #  an instance reads its idname back in Blender's own form, HTP_OT_name - the panel keys by htp.name
+        # an instance reads its idname back in Blender's own form, HTP_OT_name - the panel keys by htp.name
         idname = getattr(self, "bl_idname", "") or getattr(cls, "bl_idname", "")
         if "_OT_" in idname:
             head, tail = idname.split("_OT_", 1)

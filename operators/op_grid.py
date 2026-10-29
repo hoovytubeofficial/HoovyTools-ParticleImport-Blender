@@ -1,10 +1,10 @@
 # =============================================================================
-#  operators/op_grid.py  -  Hammer Unit Grid
+# operators/op_grid.py  -  Hammer Unit Grid
 # =============================================================================
 #
-#  Two buttons: paint Source's own grid on the floor, and take it away again.
-#  All the work is in tools/hammer_grid.py; this only reads properties, calls
-#  it, and reports what happened.
+# Two buttons: paint Source's own grid on the floor, and take it away again
+# All the work is in tools/hammer_grid.py; this only reads properties, calls
+# it, and reports what happened.
 # =============================================================================
 
 import bpy
@@ -117,7 +117,7 @@ you built against them alone."""
     def execute(self, context):
         n = hammer_grid.remove()
         if not n:
-            # Never claim to have done something to an empty scene.
+            # never claim to have done something to an empty scene
             self.report({"WARNING"}, "There was no Hammer grid to remove")
             return {"CANCELLED"}
         self.report({"INFO"}, f"Hammer grid removed ({n} objects)")
@@ -125,37 +125,37 @@ you built against them alone."""
 
 
 # =============================================================================
-#  THE HOUSE CAMERA
+# THE HOUSE CAMERA
 # =============================================================================
-#  ONE agreed viewpoint, so every effect is judged from the same place.
+# ONE agreed viewpoint, so every effect is judged from the same place
 #
-#  A particle effect has no size of its own - it only has a size NEXT TO
-#  SOMETHING. Judging one from a viewport you happened to orbit to is how an
-#  effect ends up correct on your screen and wrong in the shot. This is the
-#  angle the explosion work was built against: it frames the TF2 Scout at
-#  81.6924 units, so what you see here is what the effect is.
+# A particle effect has no size of its own - it only has a size next TO
+# SOMETHING. Judging one from a viewport you happened to orbit to is how an
+# effect ends up correct on your screen and wrong in the shot. This is the
+# angle the explosion work was built against: it frames the TF2 Scout at
+# 81.6924 units, so what you see here is what the effect is.
 #
-#  🔴 THESE NUMBERS ARE THE SPEC, not a calculation. They were measured in the
-#  scene where the effects were authored and are reproduced exactly.
+# 🔴 THESE NUMBERS are THE SPEC, not a calculation. They were measured in the
+# scene where the effects were authored and are reproduced exactly
 #
-#  The Y rotation is 0: the brief gave two rotation numbers for three axes,
-#  and Y is a camera's ROLL - banking the horizon, which nobody wants. Both
-#  of the other two check out against the position, which is how we know the
-#  reading is right:
+# The Y rotation is 0: the brief gave two rotation numbers for three axes,
+# and Y is a camera's ROLL - banking the horizon, which nobody wants. Both
+# of the other two check out against the position, which is how we know the
+# reading is right:
 #
-#      bearing   atan2(131, 256) = 27.1 degrees   against a Z of -26
-#      pitch     68 up, 287 out, aimed at about mid-Scout height, is roughly
-#                6 degrees DOWN - and 83 is 7 degrees down from level
+# bearing   atan2(131, 256) = 27.1 degrees   against a Z of -26
+# pitch     68 up, 287 out, aimed at about mid-Scout height, is roughly
+# 6 degrees DOWN - and 83 is 7 degrees down from level
 #
-#  Z is +68: the camera stands a bit above the floor and looks slightly down
-#  at a Scout standing on it. (-68 would put it underground, aiming at his
-#  feet from below.)
+# Z is +68: the camera stands a bit above the floor and looks slightly down
+# at a Scout standing on it. (-68 would put it underground, aiming at his
+# feet from below.)
 
 CAMERA_NAME = "HT · House Camera"
 CAMERA_LOCATION = (-131.0, -256.0, 68.0)
 CAMERA_ROTATION_DEG = (83.0, 0.0, -26.0)
 CAMERA_LENS = 50.0
-#  where the house camera aims (a Scout's middle) - frame_camera() keeps the same angle for any effect
+# where the house camera aims (a Scout's middle) - frame_camera() keeps the same angle for any effect
 CAMERA_AIM = (0.0, 0.0, 40.0)
 
 
@@ -239,9 +239,9 @@ against nothing."""
             cam.rotation_euler = tuple(radians(a) for a in CAMERA_ROTATION_DEG)
             try:
                 cam.data.lens = CAMERA_LENS
-                # The effects are hundreds of units across and the camera sits
+                # the effects are hundreds of units across and the camera sits
                 # 300 out, so the default 100-unit clip end would cut the far
-                # half of an explosion off.
+                # half of an explosion off
                 cam.data.clip_start = 1.0
                 cam.data.clip_end = 10000.0
             except Exception:

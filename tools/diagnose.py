@@ -1,27 +1,27 @@
 # =============================================================================
-#  tools/diagnose.py  -  why is the viewport slow? Ask the scene, not a forum.
+# tools/diagnose.py  -  why is the viewport slow? Ask the scene, not a forum
 # =============================================================================
 #
-#  Viewport lag around particle systems has exactly three usual suspects, and
-#  they need different fixes - so guessing wastes an evening:
+# Viewport lag around particle systems has exactly three usual suspects, and
+# they need different fixes - so guessing wastes an evening:
 #
-#    1. A VIEW-DEPENDENT NODE (Viewport Transform / Is Viewport) anywhere in
-#       a system's tree re-evaluates the WHOLE system on every orbit and
-#       mouse move. Builds made before v0.19 carried one in the shared eye
-#       group; one rebuild/re-import in the file cleans it for every system.
-#    2. OVERDRAW: thousands of BLENDED (sorted-transparency) cards stacked on
-#       screen cost GPU fill-rate on every redraw. That is what Proxy View
-#       is for.
-#    3. Neither - then it is not the systems: selection outlines over huge
-#       instance counts, or another overlay, drawn per redraw.
+# 1. A VIEW-DEPENDENT NODE (Viewport Transform / Is Viewport) anywhere in
+# a system's tree re-evaluates the whole system on every orbit and
+# mouse move. Builds made before v0.19 carried one in the shared eye
+# group; one rebuild/re-import in the file cleans it for every system
+# 2. OVERDRAW: thousands of BLENDED (sorted-transparency) cards stacked on
+# screen cost GPU fill-rate on every redraw. That is what Proxy View
+# is for
+# 3. Neither - then it is not the systems: selection outlines over huge
+# instance counts, or another overlay, drawn per redraw
 #
-#  scan() reads the evaluated scene and reports which suspect is present,
-#  per system. bpy-heavy by nature; kept out of the operators per RULES.
+# scan() reads the evaluated scene and reports which suspect is present,
+# per system. bpy-heavy by nature; kept out of the operators per RULES.
 # =============================================================================
 
 import bpy
 
-#  Node types whose PRESENCE makes a tree re-evaluate per view change.
+# node types whose PRESENCE makes a tree re-evaluate per view change.
 VIEW_DEP = ("GeometryNodeViewportTransform", "GeometryNodeIsViewport")
 
 
@@ -56,7 +56,7 @@ def scan_object(o, depsgraph):
                             mats.add(mat)
                     except Exception:
                         pass
-        #  the system's own Proxy View switch, if it has one
+        # the system's own Proxy View switch, if it has one
         for it in m.node_group.interface.items_tree:
             if getattr(it, "item_type", "") == "SOCKET" \
                     and it.name == "Proxy View":
@@ -66,23 +66,23 @@ def scan_object(o, depsgraph):
                 except Exception:
                     pass
                 break
-    #  BLENDED = sorted transparency, the expensive kind. The proxy's
-    #  emission material is DITHERED/opaque and free.
+    # BLENDED = sorted transparency, the expensive kind. The proxy's
+    # emission material is DITHERED/opaque and free.
     for mat in mats:
         if getattr(mat, "surface_render_method", "") == "BLENDED":
             info["blended"].add(mat.name)
     try:
         ev = o.evaluated_get(depsgraph)
-        #  🔴 KEEP THE GeometrySet ALIVE while reading from it. Chaining
-        #  `evaluated_geometry().instances_pointcloud()` frees the set the
-        #  moment the expression ends, and the PointCloud answers every
-        #  later access with "StructRNA has been removed".
+        #🔴 KEEP THE GeometrySet ALIVE while reading from it. Chaining
+        #`evaluated_geometry().instances_pointcloud()` frees the set the
+        #moment the expression ends, and the PointCloud answers every
+        #later access with "StructRNA has been removed"
         geo = ev.evaluated_geometry()
         pc = geo.instances_pointcloud()
         info["instances"] = len(pc.points) if pc is not None else 0
     except Exception as exc:
-        #  a count is nice-to-have; a diagnosis that dies on it is not -
-        #  but say WHY, a silent zero misdiagnosed a working scene once
+        # a count is nice-to-have; a diagnosis that dies on it's not -
+        # but say why, a silent zero misdiagnosed a working scene once
         print(f"[HT_PARTICLE]  diagnose: no instance count for "
               f"{o.name!r}: {exc}")
     return info

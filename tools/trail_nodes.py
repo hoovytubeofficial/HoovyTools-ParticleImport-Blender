@@ -1,87 +1,87 @@
 # =============================================================================
-#  tools/trail_nodes.py  -  render_sprite_trail
+# tools/trail_nodes.py  -  render_sprite_trail
 # =============================================================================
 #
-#  THE THIRD RENDERER, and the one whose maths nobody can hold in their head.
-#  484 uses in TF2 - sparks, tracers, debris streaks, dust kicked up off the
-#  ground. A trail is ONE CARD PER PARTICLE, stretched backwards along the way
-#  that particle is travelling.
+# the THIRD RENDERER, and the one whose maths nobody can hold in their head
+# 484 uses in TF2 - sparks, tracers, debris streaks, dust kicked up off the
+# ground. A trail is ONE CARD PER PARTICLE, stretched backwards along the way
+# that particle is travelling
 #
-#  ═══════════════════════════════════════════════════════════════════════
-#   THE RADIUS / LENGTH / MAX LENGTH INTERPLAY, ONCE, PROPERLY
-#  ═══════════════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════
+# THE RADIUS / LENGTH / MAX LENGTH INTERPLAY, ONCE, PROPERLY
+# ═══════════════════════════════════════════════════════════════════════
 #
-#  There are FOUR numbers with "length" or "radius" in their name and they are
-#  three different quantities. That is the whole reason this is confusing.
+# There are FOUR numbers with "length" or "radius" in their name and they are
+# three different quantities. That is the whole reason this is confusing
 #
-#    1. Trail Length Random -> length_min / length_max      SECONDS
-#         Not a length. How much of the particle's own TRAVEL the trail
-#         stands for. The renderer multiplies the particle's SPEED by it:
+# 1. Trail Length Random -> length_min / length_max      SECONDS
+# Not a length. How much of the particle's own TRAVEL the trail
+# stands for. The renderer multiplies the particle's SPEED by it:
 #
-#              600 HU/s x 0.2 s  =  120 HU of trail
-#               60 HU/s x 0.2 s  =   12 HU of trail
+# 600 HU/s x 0.2 s  =  120 HU of trail
+# 60 HU/s x 0.2 s  =   12 HU of trail
 #
-#         So a trail stretches when the particle is fast and shortens as drag
-#         slows it down, and NOTHING has to animate the length to do it. This
-#         is why a spark shower looks like it is being flung: the fast ones
-#         are long and the tired ones are stubs, from one number.
+# So a trail stretches when the particle is fast and shortens as drag
+# slows it down, and nothing has to animate the length to do it. This
+# is why a spark shower looks like it's being flung: the fast ones
+# are long and the tired ones are stubs, from one number.
 #
-#         The corpus tops this field out at 20 (seconds!) while the renderer's
-#         max length reaches 5000 (units). Same word, different worlds.
+# The corpus tops this field out at 20 (seconds!) while the renderer's
+# max length reaches 5000 (units). Same word, different worlds
 #
-#    2. render_sprite_trail -> min length / max length      HAMMER UNITS
-#         A CLAMP on the answer, after the multiply. min length is a floor so
-#         a nearly-stopped particle still draws something rather than winking
-#         out; max length is the ceiling that stops a fast one drawing a
-#         streak across the whole map.
+# 2. render_sprite_trail -> min length / max length      HAMMER UNITS
+# A CLAMP on the answer, after the multiply. min length is a floor so
+# a nearly-stopped particle still draws something rather than winking
+# out; max length is the ceiling that stops a fast one drawing a
+# streak across the whole map
 #
-#    3. render_sprite_trail -> length fade in time          SECONDS
-#         The trail grows from nothing over the first N seconds of the
-#         particle's life, so it does not pop in at full stretch. Corpus 0..2.
+# 3. render_sprite_trail -> length fade in time          SECONDS
+# The trail grows from nothing over the first N secs of the
+# particle's life, so it does not pop in at full stretch. Corpus 0..2
 #
-#    4. Radius Random -> radius_min / radius_max            HAMMER UNITS
-#         The WHOLE WIDTH (measured in SFM, 0.24.2 - it had been taken for the
-#         half-width). Independent of everything above: a trail is `length`
-#         long and `radius` wide.
+# 4. Radius Random -> radius_min / radius_max            HAMMER UNITS
+# The WHOLE WIDTH (measured in SFM, 0.24.2 - it had been taken for the
+# half-width). Independent of everything above: a trail is `length`
+# long and `radius` wide
 #
-#  Put together, per particle, every frame:
+# Put together, per particle, every frame:
 #
-#      speed   = | velocity |                      <- Movement Basic, exact
-#      raw     = speed x trail_length              <- seconds -> units
-#      length  = clamp(raw, min length, max length)
-#      length  = length x fade_in(age)
-#      width   = radius
+# speed   = | velocity |                      <- Movement Basic, exact
+# raw     = speed x trail_length              <- secs -> units
+# length  = clamp(raw, min length, max length)
+# length  = length x fade_in(age)
+# width   = radius
 #
-#  🔴 AND THEN "CONSTRAIN RADIUS TO LENGTH", which is the one that catches
-#  people. A slow particle has a short trail, but its radius does not shrink
-#  with it - so a 4-unit-radius spark that has slowed to a 2-unit trail draws
-#  a card WIDER THAN IT IS LONG. It stops looking like a streak and starts
-#  looking like a blob. With the constraint on, the width is capped at
-#  half the length, so a trail can only ever get squarer, never fatter.
+# 🔴 and THEN "CONSTRAIN RADIUS TO LENGTH", which is the one that catches
+# people. A slow particle has a short trail, but its radius doesn't shrink
+# with it - so a 4-unit-radius spark that has slowed to a 2-unit trail draws
+# a card WIDER THAN IT is LONG. It stops looking like a streak and starts
+# looking like a blob. With the constraint on, the width is capped at
+# half the length, so a trail can only ever get squarer, never fatter
 #
-#  ═══════════════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════════════════
 #
-#  HOW THE CARD IS BUILT, and why it is instanced rather than rebuilt
+# HOW the CARD is BUILT, and why it is instanced rather than rebuilt
 #  ------------------------------------------------------------------
-#  The rope rebuilds its rails by hand because a shared curve frame twists.
-#  A trail has no shared curve - each card is independent - so it can stay as
-#  a real INSTANCE, which matters for one specific reason:
+# The rope rebuilds its rails by hand because a shared curve frame twists.
+# A trail has no shared curve - each card is independent - so it can stay as
+# a real INSTANCE, which matters for one specific reason:
 #
-#      🔑 SEQUENCES ONLY WORK ON INSTANCES.
-#      The sprite material reads `sprite_frame` with attribute_type
-#      ='INSTANCER'. Realize the instances and that lookup has nothing to read
-#      from, every card samples tile 0, and the flipbook dies. So the trail
-#      keeps Instance on Points and does its stretching with the instance's
-#      ROTATION and SCALE instead of by moving vertices.
+# 🔑 SEQUENCES ONLY WORK ON INSTANCES.
+# The sprite material reads `sprite_frame` with attribute_type
+# ='INSTANCER'. Realize the instances and that lookup has nothing to read
+# from, every card samples tile 0, and the flipbook dies. So the trail
+# keeps Instance on Points and does its stretching with the instance's
+# ROTATION and SCALE instead of by moving vertices.
 #
-#  The card spans local Y from 0 to -1: its pivot is at the HEAD, so scaling Y
-#  grows it backwards, away from the particle, exactly like Source.
+# The card spans local Y from 0 to -1: its pivot is at the HEAD, so scaling Y
+# grows it backwards, away from the particle, exactly like Source
 #
-#  Two Align Rotation to Vector nodes do the aiming, in this order:
-#      1. point local -Y down the velocity          (the streak direction)
-#      2. spin about that Y until local Z faces the camera   (the billboard)
-#  Order matters: the second one pivots about Y, so it cannot disturb the
-#  first. Aiming at the camera first and the velocity second would.
+# Two Align Rotation to Vector nodes do the aiming, in this order:
+# 1. point local -Y down the velocity          (the streak direction)
+# 2. spin about that Y until local Z faces the camera   (the billboard)
+# Order matters: the second one pivots about Y, so it cannot disturb the
+# first. Aiming at the camera first and the velocity second would
 # =============================================================================
 
 from .sprite_nodes import _group, _sock, _nd, _lk, _sv, note, proxy_material
@@ -90,7 +90,7 @@ from .ras_nodes import _io, _gin, EPS
 
 def build_render_sprite_trail(mat, eye_group):
     """One camera-facing card per particle, stretched along its velocity."""
-    # Named after its material for the same reason as the other two
+    # named after its material for the same reason as the other two
     # renderers: the material is baked in, so a shared name means the second
     # trail built wipes the first one's interface and drops its links.
     ng = _group(f"SP · RENDERER · render_sprite_trail · {mat.name}",
@@ -104,12 +104,12 @@ def build_render_sprite_trail(mat, eye_group):
     _sock(ng, "Length Fade In Time", "INPUT", "NodeSocketFloat", 0.0,
           smin=0.0)
     _sock(ng, "Constrain Radius To Length", "INPUT", "NodeSocketBool", True)
-    #  NOT SFM - the low-GPU stand-in, same as the sprite renderer's.
+    # not SFM - the low-GPU stand-in, same as the sprite renderer's.
     _sock(ng, "Proxy View", "INPUT", "NodeSocketBool", False)
     gi, go = _io(ng, (-1700, 0), (1900, 0))
     I = _gin(ng)
 
-    # ── what the particle is doing ───────────────────────────────────────
+    #── what the particle is doing ───────────────────────────────────────
     vel = _nd(ng, "GeometryNodeInputNamedAttribute", (-1700, -320),
               "particle_velocity [read]", role="OPERATOR",
               data_type="FLOAT_VECTOR")
@@ -142,10 +142,10 @@ def build_render_sprite_trail(mat, eye_group):
     _lk(ng, tlen, 0, raw, 1)
 
     # ── 2. clamp it, in Hammer units ─────────────────────────────────────
-    #  MIN and MAX are not ordered in SFM any more than anywhere else, so the
-    #  floor and the ceiling are sorted before use - a Clamp node with them
-    #  the wrong way round returns the min for everything, and every trail in
-    #  the effect comes out exactly the same length.
+    # MIN and MAX are not ordered in SFM any more than anywhere else, so the
+    # floor and the ceiling are sorted before use - a Clamp node with them
+    # the wrong way round returns the min for everything, and every trail in
+    # the effect comes out exactly the same length.
     lo = _nd(ng, "ShaderNodeMath", (-1300, -600), "the real floor",
              role="RENDERER", operation="MINIMUM")
     _lk(ng, gi, I["Min Length"], lo, 0)
@@ -161,9 +161,9 @@ def build_render_sprite_trail(mat, eye_group):
     _lk(ng, hi, 0, clamped, 2)
 
     # ── 3. fade the length in ────────────────────────────────────────────
-    #  age / fade_in_time, held at 1. A fade time of 0 means "no fade" - and
-    #  a plain divide by 0 would make every trail either nothing or infinite,
-    #  so the window is floored and the result switched.
+    # age / fade_in_time, held at 1. A fade time of 0 means "no fade" - and
+    # a plain divide by 0 would make every trail either nothing or infinite,
+    # so the window is floored and the result switched
     win = _nd(ng, "ShaderNodeMath", (-1100, -880), "fade window, never zero",
               role="TIME", operation="MAXIMUM")
     _lk(ng, gi, I["Length Fade In Time"], win, 0)
@@ -205,7 +205,7 @@ def build_render_sprite_trail(mat, eye_group):
     _lk(ng, gi, I["Constrain Radius To Length"], half, 0)
     _lk(ng, rad, 0, half, 1)
     _lk(ng, capped, 0, half, 2)
-    # 0.24.2: THE RADIUS IS THE WHOLE WIDTH, measured - calibration kit 3's
+    # 0.24.2: THE RADIUS is THE whole WIDTH, measured - calibration kit 3's
     # radius-12 trails were 12-13 units wide in SFM, its radius-16 one 17.6.
     # (Drawn twice as wide, a spark carried twice the light on that alone.)
     width = _nd(ng, "ShaderNodeMath", (260, -800), "width = radius (measured)",
@@ -228,8 +228,8 @@ def build_render_sprite_trail(mat, eye_group):
 
     # A stationary particle has no direction to point in. Falling back to
     # straight up keeps the card valid instead of collapsing it - and a
-    # particle that is not moving has no streak to draw anyway, which the
-    # length maths has already taken care of.
+    # particle that's not moving has no streak to draw anyway, which the
+    # length maths has already taken care of
     moving = _nd(ng, "FunctionNodeCompare", (-1300, 120), "is it moving?",
                  role="OPERATOR", data_type="FLOAT", operation="GREATER_THAN")
     _lk(ng, speed, 1, moving, 0)
@@ -243,8 +243,8 @@ def build_render_sprite_trail(mat, eye_group):
     _lk(ng, up, 0, heading, 1)
     _lk(ng, vel, 0, heading, 2)
 
-    # THE CARD'S -Y IS ITS TAIL, so aiming +Y at the velocity points the tail
-    # the way the particle CAME FROM. That is what a trail is.
+    #the CARD'S -Y IS its TAIL, so aiming +Y at the velocity points the tail
+    #the way the particle CAME FROM. That is what a trail is
     aim = _nd(ng, "FunctionNodeAlignRotationToVector", (-900, 200),
               "point Y along the velocity", role="RENDERER",
               axis="Y", pivot_axis="AUTO")
@@ -267,7 +267,7 @@ def build_render_sprite_trail(mat, eye_group):
     # ⚠️ Mesh Grid's UV is an ANONYMOUS output socket, not a layer. Without
     # storing it as "UVMap" the shader has no UVs at all, samples one
     # transparent corner texel, and every trail renders INVISIBLE - which
-    # looks exactly like a broken material and is not one.
+    # looks exactly like a broken material and is not one
     uv = _nd(ng, "GeometryNodeStoreNamedAttribute", (-700, 700),
              "UVMap  (so the sheet can be read)", role="SEQUENCE",
              data_type="FLOAT2", domain="POINT")
@@ -276,7 +276,7 @@ def build_render_sprite_trail(mat, eye_group):
     _lk(ng, grid, 1, uv, 3)
     # Slide it so the head sits on the particle and the body hangs off the
     # BACK: local Y runs 0 at the head to -1 at the tail. Scaling Y then grows
-    # the trail backwards, away from the particle, the way Source does it.
+    # the trail backwards, away from the particle, the way Source does it
     shift = _nd(ng, "GeometryNodeTransform", (-500, 700),
                 "pivot at the head", role="RENDERER")
     _lk(ng, uv, 0, shift, 0)
@@ -297,12 +297,12 @@ def build_render_sprite_trail(mat, eye_group):
     _lk(ng, length, 0, scale, 1)
     _sv(scale, 2, 1.0)
 
-    #  PROXY VIEW [NOT SFM] - the low-GPU stand-in. The sheet shader is most
-    #  of what a swarm of overlapping streaks costs the viewport; a flat
-    #  untextured colour costs nothing. The proxy keeps the streak's FULL
-    #  length - the stretch IS the information a trail carries - and thins it
-    #  to a quarter of the width, so overdraw drops without the motion
-    #  becoming unreadable. Toggled from the Developer tab.
+    #PROXY VIEW [not SFM] - the low-GPU stand-in. The sheet shader is most
+    #of what a swarm of overlapping streaks costs the viewport; a flat
+    #untextured colour costs nothing. The proxy keeps the streak's FULL
+    #length - the stretch is the information a trail carries - and thins it
+    #to a quarter of the width, so overdraw drops w/o the motion
+    #becoming unreadable. Toggled from the Developer tab
     proxy_card = _nd(ng, "GeometryNodeTransform", (-300, 520),
                      "quarter width, full length", role="RENDERER")
     _lk(ng, shift, 0, proxy_card, 0)
@@ -364,10 +364,10 @@ first. Doing it the other way round would.
       eye, pos, to_eye, moving, up, heading, aim, face, grid, uv, shift,
       setmat, scale, inst])
 
-    #  PROXY COLOUR - appended at the END so no existing node's birth-order
-    #  name shifts (hand-layout tables match by name first; see RULES). Flat
-    #  per-system colour on the stand-in, same reasoning as the sprite
-    #  renderer's: zero draw cost, and proxied systems stay tellable apart.
+    # PROXY COLOUR - appended at the END so no existing node's birth-order
+    # name shifts (hand-layout tables match by name first; see RULES). Flat
+    # per-system colour on the stand-in, same reasoning as the sprite
+    # renderer's: zero draw cost, and proxied systems stay tellable apart
     psm = _nd(ng, "GeometryNodeSetMaterial", (-160, 480),
               "the stand-in's own colour", role="RENDERER")
     try:
@@ -381,10 +381,10 @@ first. Doing it the other way round would.
     _lk(ng, proxy_card, 0, psm, 0)
     _lk(ng, psm, 0, card_pick, 2)
 
-    #  0.24.2: THE TEXTURE'S TOP ROW SITS AT THE TAIL, measured - kit 3's ramp
-    #  trail in SFM was brightest (texture alpha 1, its top row) at the tail
-    #  and faded toward the head; the grid's own UVs put that row at the head.
-    #  Flipped here, appended LAST so no node's birth-order name shifts.
+    # 0.24.2: the TEXTURE'S TOP ROW SITS AT the TAIL, measured - kit 3's ramp
+    # trail in SFM was brightest (texture alpha 1, its top row) at the tail
+    # and faded toward the head; the grid's own UVs put that row at the head
+    # Flipped here, appended LAST so no node's birth-order name shifts
     vflip = _nd(ng, "ShaderNodeVectorMath", (-820, 860),
                 "v = 1 - v  (top row at the tail)", role="SEQUENCE",
                 operation="MULTIPLY_ADD")
@@ -401,7 +401,7 @@ first. Doing it the other way round would.
 
 
 # =============================================================================
-#  INITIALIZER  ·  Trail Length Random
+# INITIALIZER  ·  Trail Length Random
 # =============================================================================
 
 def build_trail_length_random():

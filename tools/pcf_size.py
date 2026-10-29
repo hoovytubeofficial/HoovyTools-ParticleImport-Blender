@@ -127,7 +127,7 @@ def system_numbers(sysdef):
         if f.startswith("render") and not n["renderer"]:
             n["renderer"] = fn
         if f == "render_sprite_trail":
-            #  the FINISHED trail is clamped to this many units (Trail Length Random is seconds of travel)
+            # the FINISHED trail is clamped to this many units (Trail Length Random is seconds of travel)
             n["trail_cap"] = _f(op, "max length", 2048.0)
         elif f == "radius random":
             n["radius"] = (max(n["radius"][0], _f(op, "radius_min", 8.0)), max(n["radius"][1], _f(op, "radius_max", 16.0)))
@@ -197,13 +197,13 @@ def _particle_cloud(n, start):
     lo, hi = n["speed_local_min"], n["speed_local_max"]
     jx = jy = jz = 0.0
     for a, window in n["jitter"]:
-        k = math.sqrt(min(life, window) / (3.0 * DRAG_FPS))      # random walk of 1/30 s pushes
+        k = math.sqrt(min(life, window) / (3.0 * DRAG_FPS))      #random walk of 1/30 s pushes
         jx, jy, jz = jx + a[0] * k, jy + a[1] * k, jz + a[2] * k
     vx = radial + max(abs(lo[0]), abs(hi[0])) + jx
     vy = radial + max(abs(lo[1]), abs(hi[1])) + jy
     v_up = radial + max(0.0, hi[2]) + jz
     v_down = radial + max(0.0, -lo[2]) + jz
-    #  acceleration: 1/2 a t^2 without drag; with drag the particle tends to a terminal speed, a*t_eff each second
+    #acceleration: 1/2 a t^2 w/o drag; with drag the particle tends to a terminal speed, a*t_eff each second
     fall_t = 0.5 * life * t_eff
     g = n["gravity"]
     ax, ay = abs(g[0]), abs(g[1])
@@ -240,7 +240,7 @@ def estimate(pcf_path, system=None, include_children=True):
         r = max(n["radius"]) * n["radius_scale"]
         trail = 0.0
         if n["renderer"].lower() == "render_sprite_trail":
-            #  speed x seconds, clamped by the renderer; a trail without Trail Length Random is 0.1 s long
+            # speed x secs, clamped by the renderer; a trail w/o Trail Length Random is 0.1 s long
             trail = min(motion["speed"] * (n["trail"] or 0.1), n["trail_cap"] if n["trail_cap"] is not None else 2048.0)
         box = cloud.grow(r + trail, r + trail, r + trail, r + trail)
         rows.append({"name": name, "depth": depth, "parent": parent, "renderer": n["renderer"] or "(none)",
