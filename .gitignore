@@ -1,0 +1,15 @@
+# Source Particle Import - what never reaches the repository.
+
+__pycache__/
+*.py[cod]
+*.blend1
+
+# Runtime output: the session logs and the PRINT HELP files people send.
+_Logs/
+
+# Your settings file - Dev > Wiring > Open Config writes it (3.0.0).
+_config/
+
+# Windows writes this when a folder gets a custom icon.
+desktop.ini
+Thumbs.db

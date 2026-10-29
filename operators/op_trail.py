@@ -243,6 +243,7 @@ it comes out that way rather than as streaks on black cards."""
                                    key_cps=self.key_control_points,
                                    overbright=src["overbright"],
                                    additive=src["additive"],
+                                   blend=src.get("blend"),
                                    warp=src.get("warp"),
                                    span_sequences=True)
         except Exception as exc:

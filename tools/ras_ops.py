@@ -613,10 +613,10 @@ def build_radius_scale():
         radius_start_scale  radius_end_scale
         start_time  end_time  ease_in_and_out  scale_bias
 
-    TIMES ARE SECONDS, not a share of the lifespan. The surveyed ranges settle
-    it - start_time reaches 5 and end_time reaches 15, which cannot be a 0..1
-    proportion. There is no `proportional 0/1` flag on this operator either,
-    unlike the alpha fades which do have one.
+    TIMES ARE FRACTIONS OF LIFE (0.24.1, measured with calibration kit 2 -
+    0.24.0 read seconds off the corpus ranges). scale_bias is Source's
+    BiasSIMD, t / ((1/b - 2)(1 - t) + 1); before start_time the radius is
+    left alone, after end_time it holds the end scale.
 
     It is the third most duplicated operator in the corpus (75 systems use two
     or three), so it CHAINS: each instance multiplies the radius it was given.
@@ -626,6 +626,8 @@ def build_radius_scale():
     _sock(ng, "Enable", "INPUT", "NodeSocketBool", True)
     _sock(ng, "Radius In", "INPUT", "NodeSocketFloat", 1.0)
     _sock(ng, "Age", "INPUT", "NodeSocketFloat", 0.0)
+    _sock(ng, "Lifetime", "INPUT", "NodeSocketFloat", 1.0)
+    _sock(ng, "Bias", "INPUT", "NodeSocketFloat", 0.5)
     _sock(ng, "Start Scale", "INPUT", "NodeSocketFloat", 1.0)
     _sock(ng, "End Scale", "INPUT", "NodeSocketFloat", 1.0)
     _sock(ng, "Start Time", "INPUT", "NodeSocketFloat", 0.0)
@@ -646,9 +648,18 @@ def build_radius_scale():
     _lk(ng, gi, I["End Time"], hi, 0)
     _lk(ng, bump, 0, hi, 1)
 
+    # 0.24.1: AGE AS A FRACTION OF LIFE - measured, see the docstring.
+    life = _nd(ng, "ShaderNodeMath", (-1180, 120), "lifetime, never zero",
+               role="TIME", operation="MAXIMUM")
+    _lk(ng, gi, I["Lifetime"], life, 0)
+    _sv(life, 1, EPS)
+    frac = _nd(ng, "ShaderNodeMath", (-980, 120), "age / lifetime",
+               role="TIME", operation="DIVIDE")
+    _lk(ng, gi, I["Age"], frac, 0)
+    _lk(ng, life, 0, frac, 1)
     ramp = _nd(ng, "ShaderNodeMapRange", (-760, 0), "0 -> 1 across the window",
                role="OPERATOR", clamp=True)
-    _lk(ng, gi, I["Age"], ramp, 0)
+    _lk(ng, frac, 0, ramp, 0)
     _lk(ng, gi, I["Start Time"], ramp, 1)
     _lk(ng, hi, 0, ramp, 2)
     _sv(ramp, 3, 0.0)
@@ -671,9 +682,42 @@ def build_radius_scale():
     _lk(ng, ramp, 0, t, 1)
     _lk(ng, eased, 0, t, 2)
 
+    # 0.24.1: SOURCE'S BIAS, MEASURED - BiasSIMD, Schlick's fast bias:
+    # t / ((1/b - 2)(1 - t) + 1), b kept inside (0, 1); 0.5 is a straight
+    # line. Kit 2's bias-0.95 row fits it to the pixel at every age - the
+    # textbook t ^ (log b / log 0.5) was up to 0.15 too big early in life.
+    b_lo = _nd(ng, "ShaderNodeMath", (-340, -260), "bias, kept inside (0,1)",
+               role="OPERATOR", operation="MAXIMUM")
+    _lk(ng, gi, I["Bias"], b_lo, 0)
+    _sv(b_lo, 1, 0.001)
+    b_hi = _nd(ng, "ShaderNodeMath", (-340, -400), "...", role="OPERATOR",
+               operation="MINIMUM")
+    _lk(ng, b_lo, 0, b_hi, 0)
+    _sv(b_hi, 1, 0.999)
+    inv_b = _nd(ng, "ShaderNodeMath", (-160, -300), "1 / b", role="OPERATOR",
+                operation="DIVIDE")
+    _sv(inv_b, 0, 1.0)
+    _lk(ng, b_hi, 0, inv_b, 1)
+    k = _nd(ng, "ShaderNodeMath", (-160, -440), "1/b - 2", role="OPERATOR",
+            operation="SUBTRACT")
+    _lk(ng, inv_b, 0, k, 0)
+    _sv(k, 1, 2.0)
+    one_t = _nd(ng, "ShaderNodeMath", (-160, -580), "1 - t", role="OPERATOR",
+                operation="SUBTRACT")
+    _sv(one_t, 0, 1.0)
+    _lk(ng, t, 0, one_t, 1)
+    den = _nd(ng, "ShaderNodeMath", (20, -440), "(1/b - 2)(1 - t) + 1",
+              role="OPERATOR", operation="MULTIPLY_ADD")
+    _lk(ng, k, 0, den, 0)
+    _lk(ng, one_t, 0, den, 1)
+    _sv(den, 2, 1.0)
+    biased = _nd(ng, "ShaderNodeMath", (-120, -120), "t / that  (Bias)",
+                 role="OPERATOR", operation="DIVIDE")
+    _lk(ng, t, 0, biased, 0)
+    _lk(ng, den, 0, biased, 1)
     scale = _nd(ng, "ShaderNodeMix", (-120, 60), "start -> end scale",
                 role="OPERATOR", data_type="FLOAT", factor_mode="UNIFORM")
-    _lk(ng, t, 0, scale, 0)
+    _lk(ng, biased, 0, scale, 0)
     _lk(ng, gi, I["Start Scale"], scale, 2)
     _lk(ng, gi, I["End Scale"], scale, 3)
 
@@ -683,7 +727,17 @@ def build_radius_scale():
                  role="OPERATOR", data_type="FLOAT", factor_mode="UNIFORM")
     _lk(ng, gi, I["Strength"], strong, 0)
     _sv(strong, 2, 1.0)
-    _lk(ng, scale, 0, strong, 3)
+    # before start_time Source never touches the radius (scale 1)
+    before = _nd(ng, "FunctionNodeCompare", (-120, 260), "before the window?",
+                 role="OPERATOR", data_type="FLOAT", operation="LESS_THAN")
+    _lk(ng, frac, 0, before, 0)
+    _lk(ng, gi, I["Start Time"], before, 1)
+    held = _nd(ng, "GeometryNodeSwitch", (40, 200), "untouched before it",
+               role="OPERATOR", input_type="FLOAT")
+    _lk(ng, before, 0, held, 0)
+    _lk(ng, scale, 0, held, 1)
+    _sv(held, 2, 1.0)
+    _lk(ng, held, 0, strong, 3)
 
     out = _nd(ng, "ShaderNodeMath", (340, 60), "radius x that",
               role="OPERATOR", operation="MULTIPLY")
@@ -700,10 +754,10 @@ def build_radius_scale():
     scale  = mix( radius_start_scale , radius_end_scale , t )
     radius = radius x scale
 
-where t ramps 0 -> 1 between start_time and end_time, both in SECONDS of the
-particle's age. The surveyed ranges settle the units: start_time reaches 5 and
-end_time reaches 15, which cannot be a 0..1 proportion, and unlike the alpha
-fades this operator carries no `proportional 0/1` field.
+where t ramps 0 -> 1 between start_time and end_time, both FRACTIONS OF THE
+PARTICLE'S LIFE - measured in SFM's particle editor (0.24.1; 0.24.0 had read
+seconds off the corpus ranges). t is then biased the way Source's BiasSIMD
+does it: t / ((1/b - 2)(1 - t) + 1).
 
 ease_in_and_out smooths both ends instead of ramping linearly.
 
@@ -714,9 +768,9 @@ was handed rather than replacing it. Two Radius Scales are a grow-then-shrink.
 Disabled, or strength 0 -> the radius passes through UNCHANGED. Fading an
 operator out means "stop acting", never "scale to nothing".
 
-NOT IMPLEMENTED: scale_bias. It biases the interpolation and the exact curve
-is not something to guess at - it is listed under `ignored` in ras_spec so the
-importer warns rather than silently changing an effect's shape.
+scale_bias (0.24.1, measured): 0.5 is linear; 0.95 is ~60% of the way at
+1/16 of life and ~90% by a third. It is what makes the concrete impacts' dust
+cloud appear at full size.
 """, [bump, hi, ramp, eased, t, scale, strong, out, sw])
     return ng
 
@@ -1355,6 +1409,8 @@ def build_position_along_path():
     _sock(ng, "Scale", "INPUT", "NodeSocketFloat", 1.0)
     _sock(ng, "ID", "INPUT", "NodeSocketInt", 0)
     _sock(ng, "Seed", "INPUT", "NodeSocketInt", 0)
+    #  0.26.3: Position Along Path RANDOM rolls t instead of counting it
+    _sock(ng, "Random Fraction", "INPUT", "NodeSocketBool", False)
     gi, go = _io(ng, (-1800, 0), (1500, 0))
     I = _gin(ng)
 
@@ -1374,10 +1430,28 @@ def build_position_along_path():
                role="INITIALIZER", operation="SUBTRACT")
     _lk(ng, n_safe, 0, span, 0)
     _sv(span, 1, 1.0)
-    t = _nd(ng, "ShaderNodeMath", (-1200, 260), "t = 0..1 along the path",
-            role="INITIALIZER", operation="DIVIDE")
-    _lk(ng, idx, 0, t, 0)
-    _lk(ng, span, 0, t, 1)
+    t_seq = _nd(ng, "ShaderNodeMath", (-1200, 260), "t = 0..1 along the path",
+                role="INITIALIZER", operation="DIVIDE")
+    _lk(ng, idx, 0, t_seq, 0)
+    _lk(ng, span, 0, t_seq, 1)
+    t_salt = _nd(ng, "ShaderNodeMath", (-1400, 480), "seed + salt",
+                 role="INITIALIZER", operation="ADD")
+    _lk(ng, gi, I["Seed"], t_salt, 0)
+    _sv(t_salt, 1, 523.0)
+    t_salt_i = _nd(ng, "FunctionNodeFloatToInt", (-1300, 480),
+                   role="INITIALIZER")
+    _lk(ng, t_salt, 0, t_salt_i, 0)
+    t_roll = _nd(ng, "FunctionNodeRandomValue", (-1200, 480),
+                 "t rolled 0..1", role="INITIALIZER", data_type="FLOAT")
+    _sv(t_roll, 0, 0.0)
+    _sv(t_roll, 1, 1.0)
+    _lk(ng, gi, I["ID"], t_roll, 2)
+    _lk(ng, t_salt_i, 0, t_roll, 3)
+    t = _nd(ng, "GeometryNodeSwitch", (-1040, 320), "counted, or rolled",
+            role="INITIALIZER", input_type="FLOAT")
+    _lk(ng, gi, I["Random Fraction"], t, 0)
+    _lk(ng, t_seq, 0, t, 1)
+    _lk(ng, t_roll, 0, t, 2)
 
     # ── the straight line from start to end ──────────────────────────────
     along = _nd(ng, "ShaderNodeVectorMath", (-1400, 20), "start -> end",
@@ -1830,8 +1904,8 @@ def build_alpha_fade_and_decay():
     _sock(ng, "Start Alpha", "INPUT", "NodeSocketFloat", 1.0)
     _sock(ng, "End Alpha", "INPUT", "NodeSocketFloat", 0.0)
     _sock(ng, "Start Fade In", "INPUT", "NodeSocketFloat", 0.0)
-    _sock(ng, "End Fade In", "INPUT", "NodeSocketFloat", 0.25)
-    _sock(ng, "Start Fade Out", "INPUT", "NodeSocketFloat", 0.75)
+    _sock(ng, "End Fade In", "INPUT", "NodeSocketFloat", 0.5)
+    _sock(ng, "Start Fade Out", "INPUT", "NodeSocketFloat", 0.5)
     _sock(ng, "End Fade Out", "INPUT", "NodeSocketFloat", 1.0)
     _sock(ng, "Strength", "INPUT", "NodeSocketFloat", 1.0)
     gi, go = _io(ng, (-1200, 0), (1100, 0))
@@ -1869,13 +1943,29 @@ def build_alpha_fade_and_decay():
     _lk(ng, gi, I["Start Alpha"], rise, 3)
     _sv(rise, 4, 1.0)
 
-    fall = _nd(ng, "ShaderNodeMapRange", (-220, -380),
-               "normal -> end_alpha", role="OPERATOR", clamp=True)
-    _lk(ng, frac, 0, fall, 0)
-    _lk(ng, gi, I["Start Fade Out"], fall, 1)
-    _lk(ng, out_end, 0, fall, 2)
+    # 0.24.1: THE FADE-OUT IS (1 - x)^2, MEASURED. Kit 2's default row,
+    # read back through the editor's double draw, fits (1 - x)^2 per draw
+    # to 0.01-0.03 alpha; a straight line is 0.1-0.25 too bright late in life.
+    xo = _nd(ng, "ShaderNodeMapRange", (-220, -380), "fade-out progress x",
+             role="OPERATOR", clamp=True)
+    _lk(ng, frac, 0, xo, 0)
+    _lk(ng, gi, I["Start Fade Out"], xo, 1)
+    _lk(ng, out_end, 0, xo, 2)
+    _sv(xo, 3, 0.0)
+    _sv(xo, 4, 1.0)
+    keep = _nd(ng, "ShaderNodeMath", (-40, -460), "1 - x", role="OPERATOR",
+               operation="SUBTRACT")
+    _sv(keep, 0, 1.0)
+    _lk(ng, xo, 0, keep, 1)
+    sq = _nd(ng, "ShaderNodeMath", (120, -460), "(1 - x)^2  (measured)",
+             role="OPERATOR", operation="POWER")
+    _lk(ng, keep, 0, sq, 0)
+    _sv(sq, 1, 2.0)
+    fall = _nd(ng, "ShaderNodeMix", (-220, -560), "end_alpha -> normal",
+               role="OPERATOR", data_type="FLOAT", factor_mode="UNIFORM")
+    _lk(ng, sq, 0, fall, 0)
+    _lk(ng, gi, I["End Alpha"], fall, 2)
     _sv(fall, 3, 1.0)
-    _lk(ng, gi, I["End Alpha"], fall, 4)
 
     both = _nd(ng, "ShaderNodeMath", (60, 0), "rise x fall", role="OPERATOR",
                operation="MULTIPLY")
@@ -2072,12 +2162,23 @@ def build_color_fade():
     _sock(ng, "Color In", "INPUT", "NodeSocketColor", (1.0, 1.0, 1.0, 1.0))
     _sock(ng, "Fade To", "INPUT", "NodeSocketColor", (1.0, 1.0, 1.0, 1.0))
     _sock(ng, "Age", "INPUT", "NodeSocketFloat", 0.0)
+    _sock(ng, "Lifetime", "INPUT", "NodeSocketFloat", 1.0)
     _sock(ng, "Start Time", "INPUT", "NodeSocketFloat", 0.0)
     _sock(ng, "End Time", "INPUT", "NodeSocketFloat", 1.0)
     _sock(ng, "Ease", "INPUT", "NodeSocketBool", True)
     _sock(ng, "Strength", "INPUT", "NodeSocketFloat", 1.0)
     gi, go = _io(ng, (-1100, 0), (900, 0))
     I = _gin(ng)
+
+    # 0.24.1: FRACTIONS OF LIFE, measured (kit 2's fade ran across the whole life)
+    c_life = _nd(ng, "ShaderNodeMath", (-880, 260), "lifetime, never zero",
+                 role="TIME", operation="MAXIMUM")
+    _lk(ng, gi, I["Lifetime"], c_life, 0)
+    _sv(c_life, 1, EPS)
+    c_frac = _nd(ng, "ShaderNodeMath", (-700, 260), "age / lifetime",
+                 role="TIME", operation="DIVIDE")
+    _lk(ng, gi, I["Age"], c_frac, 0)
+    _lk(ng, c_life, 0, c_frac, 1)
 
     # same zero-length trap as the alpha operator
     bump = _nd(ng, "ShaderNodeMath", (-880, -240), "start + eps", role="TIME",
@@ -2091,7 +2192,7 @@ def build_color_fade():
 
     linear = _nd(ng, "ShaderNodeMapRange", (-480, 120), "linear ramp",
                  role="OPERATOR", clamp=True, interpolation_type="LINEAR")
-    _lk(ng, gi, I["Age"], linear, 0)
+    _lk(ng, c_frac, 0, linear, 0)
     _lk(ng, gi, I["Start Time"], linear, 1)
     _lk(ng, end, 0, linear, 2)
     _sv(linear, 3, 0.0)
@@ -2103,7 +2204,7 @@ def build_color_fade():
     smooth = _nd(ng, "ShaderNodeMapRange", (-480, -140), "eased ramp",
                  role="OPERATOR", clamp=True,
                  interpolation_type="SMOOTHSTEP")
-    _lk(ng, gi, I["Age"], smooth, 0)
+    _lk(ng, c_frac, 0, smooth, 0)
     _lk(ng, gi, I["Start Time"], smooth, 1)
     _lk(ng, end, 0, smooth, 2)
     _sv(smooth, 3, 0.0)
@@ -2578,7 +2679,7 @@ def build_yaw_random():
     _lk(ng, salt, 0, yaw, 3)
     rad = _nd(ng, "ShaderNodeMath", (-320, -60), "degrees -> radians",
               role="INITIALIZER", operation="RADIANS")
-    _lk(ng, yaw, 1, rad, 0)
+    _lk(ng, yaw, 0, rad, 0)      # 0.26.3: 5.2's Random Value has ONE output
     squish = _nd(ng, "ShaderNodeMath", (-140, -60), "cos = how much is left",
                  role="INITIALIZER", operation="COSINE")
     _lk(ng, rad, 0, squish, 0)
@@ -2905,7 +3006,7 @@ def build_constrain_to_path():
     mag_a = _nd(ng, "ShaderNodeMath", (350, -620), "bulge x roll",
                 role="CONSTRAINT", operation="MULTIPLY")
     _lk(ng, gi, I["Random Bulge"], mag_a, 0)
-    _lk(ng, mag_roll, 1, mag_a, 1)
+    _lk(ng, mag_roll, 0, mag_a, 1)   # 0.26.3: 5.2's Random Value has ONE output
     mag = _nd(ng, "ShaderNodeMath", (530, -620), "x path length",
               role="CONSTRAINT", operation="MULTIPLY")
     _lk(ng, mag_a, 0, mag, 0)

@@ -1035,6 +1035,10 @@ def build_camera_eye(viewport=False):
     ng = _group("SP · RENDERER · the eye"
                 + (" · viewport" if viewport else ""), "GeometryNodeTree")
     _sock(ng, "Eye", "OUTPUT", "NodeSocketVector")
+    #  0.24.0: the camera's ROTATION too - SFM's orientation 0 is SCREEN-
+    #  ALIGNED (every card parallel to the screen, up = the camera's up), and
+    #  only the camera's own rotation says which way that is.
+    _sock(ng, "View Rotation", "OUTPUT", "NodeSocketRotation")
     _sock(ng, "Camera", "INPUT", "NodeSocketObject")
     _sock(ng, "Camera Source", "INPUT", "NodeSocketInt", 0, smin=0, smax=2)
     gi, go = _io(ng, (-1700, 0), (400, 0))
@@ -1100,10 +1104,25 @@ def build_camera_eye(viewport=False):
         _lk(ng, cam, 1, eye, 1)
         _lk(ng, eye_local, 0, eye, 2)
         eye_pos, eye_idx = eye, 0
+        #  the viewport's rotation, in the particles' frame
+        vp_mat = _nd(ng, "FunctionNodeMatrixMultiply", (-1120, -180),
+                     "eye transform, in the particles' frame", role="RENDERER")
+        _lk(ng, host_inv, 0, vp_mat, 0)
+        _lk(ng, eye_world, 0, vp_mat, 1)
+        vp_split = _nd(ng, "FunctionNodeSeparateTransform", (-940, -180),
+                       "its rotation", role="RENDERER")
+        _lk(ng, vp_mat, 0, vp_split, 0)
+        rot = _nd(ng, "GeometryNodeSwitch", (-920, 500), "the view's rotation",
+                  role="RENDERER", input_type="ROTATION")
+        _lk(ng, use_view, 0, rot, 0)
+        ng.links.new(cam.outputs["Rotation"], rot.inputs[1])
+        ng.links.new(vp_split.outputs["Rotation"], rot.inputs[2])
+        view_rot = rot.outputs[0]
         vp_nodes = [view, eye_world, eye_split, host, host_info, host_inv,
-                    eye_local, use_view, eye]
+                    eye_local, use_view, eye, vp_mat, vp_split, rot]
     else:
         eye_pos, eye_idx = cam, 1          # Object Info's Location output
+        view_rot = cam.outputs["Rotation"]
         vp_nodes = []
 
     #  🔴 NO CAMERA MUST NOT MEAN "FACE THE ORIGIN". With no camera in the
@@ -1130,6 +1149,13 @@ def build_camera_eye(viewport=False):
     _lk(ng, eye_pos, eye_idx, eye_out, 1)
     _lk(ng, far_up, 0, eye_out, 2)
     _lk(ng, eye_out, 0, go, 0)
+    #  no camera: the far-up stand-in looks straight down, which is the
+    #  identity rotation (a camera's -Z is its forward) - cards lie flat.
+    rot_out = _nd(ng, "GeometryNodeSwitch", (-360, 40), "the view's rotation, always",
+                  role="RENDERER", input_type="ROTATION")
+    _lk(ng, no_cam, 0, rot_out, 0)
+    ng.links.new(view_rot, rot_out.inputs[1])
+    ng.links.new(rot_out.outputs[0], go.inputs["View Rotation"])
 
     note(ng, "RENDERER  ·  where the eye is", "RENDERER", """
 Camera Source - NOT an SFM field; SFM has one camera and never has to ask.
@@ -1243,11 +1269,14 @@ def build_render_animated_sprites(mat, eye_group):
     _lk(ng, eye, 0, to_cam, 0)
     _lk(ng, pos, 0, to_cam, 1)
 
-    # type 0: full billboard - Z points at the camera
-    billboard = _nd(ng, "FunctionNodeAlignRotationToVector", (-660, 340),
-                    "0 · face the camera", role="RENDERER",
-                    axis="Z", pivot_axis="AUTO")
-    _lk(ng, to_cam, 0, billboard, 2)
+    # type 0: SCREEN-ALIGNED - the card takes the CAMERA'S ROTATION (0.24.0).
+    # 🔴 It used to aim Z at the camera POINT with Align-to-Vector (pivot
+    # AUTO), which leaves the roll to the shortest arc: on the calibration kit
+    # the cards came out rolled 20-45 degrees, more the further from the
+    # middle - SFM's are upright squares everywhere. Screen-aligned means every
+    # card is parallel to the screen with the camera's up as its up, and the
+    # camera's own rotation is exactly that.
+    billboard = eye
     # type 1: ERECT. 🔴 Align-to-vector CANNOT do this one: the card's normal
     # starts at world +Z, and "rotate about pivot Z" never moves +Z anywhere -
     # so the old align node quietly left every type-1 card LYING FLAT. The rod
@@ -1287,7 +1316,7 @@ def build_render_animated_sprites(mat, eye_group):
     pick1 = _nd(ng, "GeometryNodeSwitch", (-420, 240), "billboard or upright",
                 role="RENDERER", input_type="ROTATION")
     _lk(ng, is1, 0, pick1, 0)
-    _lk(ng, billboard, 0, pick1, 1)
+    ng.links.new(eye.outputs["View Rotation"], pick1.inputs[1])
     _lk(ng, upright, 0, pick1, 2)
     pick2 = _nd(ng, "GeometryNodeSwitch", (-220, 140), "...or CP locked",
                 role="RENDERER", input_type="ROTATION")
@@ -1385,8 +1414,9 @@ space. Skip that conversion and the sprites aim at a point offset by wherever
 the host object happens to sit.
 
 ORIENTATION TYPE, straight from SFM:
-  0  Screen-aligned billboard. The card's Z is aimed at the camera, so it
-     faces you from any angle. Standard for smoke, explosions.
+  0  Screen-aligned. Every card takes the camera's rotation: parallel to
+     the screen, the camera's up as its up (0.24.0 - aiming at the camera
+     point rolled them). Standard for smoke, explosions.
   1  ERECT. A rod through the card's middle: it yaws to face you as you
      orbit, stays dead straight, and is nearly invisible from above. Fire is
      authored with this so flames stand up - and it takes NO random roll,

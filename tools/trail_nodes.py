@@ -40,8 +40,9 @@
 #         particle's life, so it does not pop in at full stretch. Corpus 0..2.
 #
 #    4. Radius Random -> radius_min / radius_max            HAMMER UNITS
-#         The HALF-WIDTH. Completely independent of everything above: a trail
-#         is `length` long and `radius x 2` wide.
+#         The WHOLE WIDTH (measured in SFM, 0.24.2 - it had been taken for the
+#         half-width). Independent of everything above: a trail is `length`
+#         long and `radius` wide.
 #
 #  Put together, per particle, every frame:
 #
@@ -49,13 +50,13 @@
 #      raw     = speed x trail_length              <- seconds -> units
 #      length  = clamp(raw, min length, max length)
 #      length  = length x fade_in(age)
-#      width   = radius x 2
+#      width   = radius
 #
 #  🔴 AND THEN "CONSTRAIN RADIUS TO LENGTH", which is the one that catches
 #  people. A slow particle has a short trail, but its radius does not shrink
 #  with it - so a 4-unit-radius spark that has slowed to a 2-unit trail draws
 #  a card WIDER THAN IT IS LONG. It stops looking like a streak and starts
-#  looking like a blob. With the constraint on, the half-width is capped at
+#  looking like a blob. With the constraint on, the width is capped at
 #  half the length, so a trail can only ever get squarer, never fatter.
 #
 #  ═══════════════════════════════════════════════════════════════════════
@@ -100,7 +101,7 @@ def build_render_sprite_trail(mat, eye_group):
     _sock(ng, "Camera Source", "INPUT", "NodeSocketInt", 0, smin=0, smax=2)
     _sock(ng, "Min Length", "INPUT", "NodeSocketFloat", 1.0, smin=0.0)
     _sock(ng, "Max Length", "INPUT", "NodeSocketFloat", 2048.0, smin=0.0)
-    _sock(ng, "Length Fade In Time", "INPUT", "NodeSocketFloat", 0.5,
+    _sock(ng, "Length Fade In Time", "INPUT", "NodeSocketFloat", 0.0,
           smin=0.0)
     _sock(ng, "Constrain Radius To Length", "INPUT", "NodeSocketBool", True)
     #  NOT SFM - the low-GPU stand-in, same as the sprite renderer's.
@@ -204,10 +205,13 @@ def build_render_sprite_trail(mat, eye_group):
     _lk(ng, gi, I["Constrain Radius To Length"], half, 0)
     _lk(ng, rad, 0, half, 1)
     _lk(ng, capped, 0, half, 2)
-    width = _nd(ng, "ShaderNodeMath", (260, -800), "width = half x 2",
+    # 0.24.2: THE RADIUS IS THE WHOLE WIDTH, measured - calibration kit 3's
+    # radius-12 trails were 12-13 units wide in SFM, its radius-16 one 17.6.
+    # (Drawn twice as wide, a spark carried twice the light on that alone.)
+    width = _nd(ng, "ShaderNodeMath", (260, -800), "width = radius (measured)",
                 role="RENDERER", operation="MULTIPLY")
     _lk(ng, half, 0, width, 0)
-    _sv(width, 1, 2.0)
+    _sv(width, 1, 1.0)
 
     # ── 5. aim it ────────────────────────────────────────────────────────
     eye = _nd(ng, "GeometryNodeGroup", (-1500, 420), "where the camera is",
@@ -325,14 +329,14 @@ ONE CARD PER PARTICLE, stretched backwards along the way it is travelling.
     raw     = speed x trail_length             SECONDS become UNITS here
     length  = clamp(raw, min length, max length)
     length  = length x fade_in(age)
-    width   = radius x 2
+    width   = radius                         (measured, 0.24.2)
 
 THE FOUR NUMBERS ARE THREE QUANTITIES, and that is the whole confusion:
 
   Trail Length Random  length_min/max   SECONDS of travel. Not a length.
   render_sprite_trail  min/max length   HAMMER UNITS. A clamp on the answer.
   render_sprite_trail  length fade in   SECONDS. Grows in from nothing.
-  Radius Random        radius_min/max   HAMMER UNITS. The HALF width.
+  Radius Random        radius_min/max   HAMMER UNITS. The WHOLE width.
 
 Because the length is speed x seconds, a trail stretches when the particle is
 fast and shortens as drag slows it down, with nothing animating it. That is
@@ -340,7 +344,7 @@ what makes a spark shower read as thrown rather than drawn.
 
 CONSTRAIN RADIUS TO LENGTH is the one that catches people. Radius does NOT
 shrink with the trail, so a slowed particle draws a card wider than it is
-long - a blob instead of a streak. The constraint caps the half-width at half
+long - a blob instead of a streak. The constraint caps the width at half
 the length, so a trail can get squarer but never fatter.
 
 WHY THIS STAYS AN INSTANCE while the rope rebuilds its vertices by hand:
@@ -376,6 +380,23 @@ first. Doing it the other way round would.
             ng.links.remove(l)
     _lk(ng, proxy_card, 0, psm, 0)
     _lk(ng, psm, 0, card_pick, 2)
+
+    #  0.24.2: THE TEXTURE'S TOP ROW SITS AT THE TAIL, measured - kit 3's ramp
+    #  trail in SFM was brightest (texture alpha 1, its top row) at the tail
+    #  and faded toward the head; the grid's own UVs put that row at the head.
+    #  Flipped here, appended LAST so no node's birth-order name shifts.
+    vflip = _nd(ng, "ShaderNodeVectorMath", (-820, 860),
+                "v = 1 - v  (top row at the tail)", role="SEQUENCE",
+                operation="MULTIPLY_ADD")
+    _sv(vflip, 1, (1.0, -1.0, 1.0))
+    _sv(vflip, 2, (0.0, 1.0, 0.0))
+    for l in list(ng.links):
+        # the UV link only - the grid's MESH runs into the same node
+        if l.from_node.name == grid.name and l.to_node.name == uv.name \
+                and l.from_socket.identifier == grid.outputs[1].identifier:
+            ng.links.remove(l)
+    _lk(ng, grid, 1, vflip, 0)
+    _lk(ng, vflip, 0, uv, 3)
     return ng
 
 

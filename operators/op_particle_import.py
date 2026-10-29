@@ -30,7 +30,8 @@ from bpy.props import (StringProperty, FloatProperty, EnumProperty,
 from bpy_extras.io_utils import ImportHelper
 
 from . import op_prefs
-from ..tools import pcf
+from ..tools import pcf, htlog
+from ..icons import tab_items
 
 
 TAG = "[HT_PARTICLE]"
@@ -95,27 +96,51 @@ def seconds_per_frame(scene):
     return (1.0 / fps) if fps else 0.0
 
 
+def read_hint(path, exc=None):
+    """3.0.0: what to try, from what the file looks like - the common reasons a .pcf will not read."""
+    try:
+        size = Path(path).stat().st_size
+        head = Path(path).open("rb").read(64)
+    except Exception:
+        return "the file cannot be opened - is it still there, and not open in another program?"
+    if size < 200:
+        return ("the file is %d bytes - a .pcf with no particle systems in it (SFM writes 140 bytes for an "
+                "empty one); open it in SFM's particle editor to check" % size)
+    if not head.lstrip().startswith(b"<!-- dmx"):
+        return "it does not start with a DMX header - is it really a particle file, or a renamed one?"
+    if isinstance(exc, (ValueError, KeyError, IndexError)):
+        return ("it is a DMX file this reader trips over - if SFM's particle editor opens it, press PRINT HELP "
+                "(Dev tab) and send the .txt")
+    return "open it in SFM's particle editor; if SFM loads it, press PRINT HELP (Dev tab) and send the .txt"
+
+
 def load_pcf_into_stash(path_str):
-    """Parse a .pcf into the stash. Returns an error string, or None on OK."""
+    """Parse a .pcf into the stash. Returns an error string, or None on OK.
+
+    3.0.0: every error names the file - its full path, its size, the stage, the exception and where in the
+    add-on it happened (tools/htlog.failure) - and is kept for PRINT HELP."""
     if not path_str:
         _clear_stash()
         return "No file given."
     path = Path(bpy.path.abspath(path_str))
     if not path.is_file():
         _clear_stash()
-        return f"Not a file: {path_str}"
+        return htlog.failure("The .pcf is not there", pcf=path, stage="opening the file",
+                             hint="it was moved, renamed or is on a drive that is not connected - browse to it "
+                                  "again")
     try:
         dm = pcf.load_pcf(path)
         hierarchy = pcf.build_hierarchy(dm)
     except Exception as exc:
         _clear_stash()
-        print(f"{TAG}  ERROR reading {path.name}: {exc}")
-        return f"Could not read PCF: {exc}"
+        return htlog.failure("Could not read the .pcf", pcf=path, exc=exc,
+                             stage="reading the particle file (DMX)", hint=read_hint(path, exc))
 
     picker = pcf.flatten_for_picker(hierarchy)
     if not picker:
         _clear_stash()
-        return "No particle systems in that .pcf."
+        return htlog.failure("No particle systems in the .pcf", pcf=path, stage="listing its systems",
+                             hint=read_hint(path))
 
     _STASH["path"] = str(path)
     _STASH["picker"] = picker
@@ -169,6 +194,26 @@ def _on_path_edited(self, context):
 #  Settings live on the Scene so the panel and the dialog share them
 # =============================================================================
 
+#  3.0.0: set while the playhead handler / a preset writes a field, so the field's own update can tell "you typed
+#  it" (switch the automatic off) from "it was set for you" (leave it on)
+_AUTO = {"on": False}
+
+
+def _start_time_edited(self, _context):
+    if not _AUTO["on"] and self.follow_playhead:
+        self.follow_playhead = False
+
+
+def _time_scale_edited(self, _context):
+    if not _AUTO["on"] and self.match_blend:
+        self.match_blend = False
+
+
+def blend_time_scale(scene):
+    """Match .blend: the scene's frame rate over SFM's 24."""
+    fps = scene.render.fps / (scene.render.fps_base or 1.0)
+    return fps / 24.0
+
 class HTP_Props(PropertyGroup):
     # NOTE: deliberately NO subtype="FILE_PATH". That subtype makes Blender
     # draw its own little folder button, which sat right next to our SFM-style
@@ -185,8 +230,29 @@ class HTP_Props(PropertyGroup):
         items=_system_enum_items,
     )
     start_time: FloatProperty(
-        name="Start Time", description="When the system starts, in seconds",
-        default=0.0, min=0.0, precision=4,
+        name="Start Time", description="When the system starts, in seconds. Follows the playhead while the "
+                                       "clock beside it is on - typing a value switches that off",
+        default=0.0, min=0.0, precision=4, update=_start_time_edited,
+    )
+    follow_playhead: BoolProperty(
+        name="Follow Playhead",
+        description="Start Time follows the timeline: scrub, and the effect will start where the playhead is.\n\n"
+                    "THIS FEATURE WAS ADDED IN VERSION 3.0.0 AND IS IN EXPERIMENTAL STAGE",
+        default=True,
+    )
+    match_blend: BoolProperty(
+        name="Match .blend",
+        description="Time Scale from this .blend's frame rate (fps / 24) - read again when you build, so changing "
+                    "the scene's frame rate later is followed.\n\nTHIS FEATURE WAS ADDED IN VERSION 3.0.0 AND IS IN "
+                    "EXPERIMENTAL STAGE",
+        default=True,
+    )
+    developer_mode: BoolProperty(
+        name="Developer Mode",
+        description="Show the extras for whoever works ON the add-on - the folder of each tool's Text Editor "
+                    "version (under Create PCF Preview and Calculate Size). It changes what the panel shows, never "
+                    "what a tool does.\n\nTHIS FEATURE WAS ADDED IN VERSION 3.0.0 AND IS IN EXPERIMENTAL STAGE",
+        default=False,
     )
     emission_duration: FloatProperty(
         name="Emission Duration",
@@ -214,22 +280,13 @@ class HTP_Props(PropertyGroup):
                     "rate. Applied to every system the build creates; "
                     "editable afterwards per system under the modifier's "
                     "SYSTEM PROPERTIES",
-        default=1.0, min=0.0,
+        default=1.0, min=0.0, update=_time_scale_edited,
     )
     active_tab: EnumProperty(
         name="Tab",
-        items=[
-            ("IMPORT", "Particle Import",
-             "Import an SFM/Source particle system from a .pcf", "PARTICLES", 0),
-            ("DEV", "Developer Tools",
-             "The tools, in pipeline order: look at a texture, check the "
-             "sheet, build the system, share it", "TOOL_SETTINGS", 1),
-            ("PROPS", "System Properties",
-             "Every variable of the selected system, organised by SFM "
-             "section - click a built mesh and edit it here instead of "
-             "digging through the modifier", "PROPERTIES", 3),
-        ],
-        default="IMPORT",
+        items=tab_items,
+        # Dynamic enums require a numeric default; 0 is the existing Import ID.
+        default=0,
     )
     props_show_disabled: BoolProperty(
         name="Show Disabled",
@@ -265,37 +322,27 @@ def draw_import_ui(layout, context, compact=False, in_dialog=False):
         layout.label(text="Add-on properties not registered", icon="ERROR")
         return
 
-    col = layout.column()
+    from ..icons import icon_id
+    box = layout.box()
+    col = box.column()
     col.label(text="Particle System Definition File:")
     row = col.row(align=True)
     row.prop(p, "definition_file", text="")
     browse = row.operator(HTP_OT_BrowsePCF.bl_idname, text="Browse...",
                           icon="FILEBROWSER")
     browse.reopen_dialog = in_dialog
-
-    col.separator()
     col.label(text="Particle System Definition:")
     sub = col.row()
     sub.enabled = bool(_STASH["picker"])
     sub.prop(p, "system", text="")
-    #  NO "N system(s) in file.pcf" READOUT. The dropdown above IS that
-    #  information - a tick repeating what you can already see is clutter.
 
-    #  THE CONTROL-POINT READOUT IS GONE ON PURPOSE. It re-scanned the .pcf to
-    #  print a number nobody acts on - the count is not a choice, it comes out
-    #  of the file, and the importer now builds ONE shared set for the whole
-    #  effect whatever it says. A live figure you cannot do anything about is
-    #  just something else to read past.
-
-    #  ⏱️ PLAYHEAD SITS ON THE FIELD IT FILLS IN. It was a full-width button
-    #  further down, which is a lot of panel for "copy one number into the box
-    #  above". Icon-only, right of Start Time, where it is obviously about
-    #  Start Time.
-    col.separator()
+    box = layout.box()
+    col = box.column(align=True)
     if compact:
         row = col.row(align=True)
         row.prop(p, "start_time")
-        row.operator("htp.use_playhead", text="", icon="TIME")
+        #  the clock IS the switch: on, Start Time follows the playhead while you scrub
+        row.prop(p, "follow_playhead", text="", icon="TIME", toggle=True)
         col.prop(p, "emission_duration")
         col.prop(p, "lifetime")
     else:
@@ -304,14 +351,14 @@ def draw_import_ui(layout, context, compact=False, in_dialog=False):
         left.label(text="Start Time:")
         row = right.row(align=True)
         row.prop(p, "start_time", text="")
-        row.operator("htp.use_playhead", text="", icon="TIME")
+        row.prop(p, "follow_playhead", text="", icon="TIME", toggle=True)
         for label, key in (("Emission Duration:", "emission_duration"),
                            ("Particle System Lifetime:", "lifetime")):
             left.label(text=label)
             right.prop(p, key, text="")
 
-    # Scale: two presets plus a free field. UI only for now.
-    col.separator()
+    box = layout.box()
+    col = box.column(align=True)
     col.label(text="Scale:")
     row = col.row(align=True)
     one = row.operator(HTP_OT_SetScale.bl_idname, text="1",
@@ -321,39 +368,30 @@ def draw_import_ui(layout, context, compact=False, in_dialog=False):
                        depress=abs(p.scale - SCALE_SOURCE) < 1e-9)
     src.value = SCALE_SOURCE
     col.prop(p, "scale", text="")
-
-    # Time Scale: FPS presets plus a free field, applied to every system the
-    # build creates. The presets answer "my scene runs at N FPS": each sets
-    # scale = FPS / 24, because SFM's timeline is 24 FPS - so one rendered
-    # frame always carries the same amount of effect-time as one SFM frame.
-    # 24 FPS is the authored speed (1.0); 30 FPS is 1.25, 60 FPS is 2.5.
-    # The field still accepts any value for slow-motion by hand.
     col.separator()
+    #  Time Scale: Match .blend (the default - fps / 24, read at build time) or a preset "my scene runs at N FPS",
+    #  each FPS / 24 because SFM's timeline is 24 FPS. The field takes any value by hand.
     col.label(text="Time Scale:")
-    row = col.row(align=True)
+    split = col.split(factor=0.5, align=True)
+    m = split.operator(HTP_OT_SetTimeScale.bl_idname, text="Match .blend", depress=p.match_blend)
+    m.value = -1.0
+    row = split.row(align=True)
     for fps in (24, 30, 60):
         v = fps / 24.0
-        b = row.operator(HTP_OT_SetTimeScale.bl_idname, text=f"{fps} FPS",
-                         depress=abs(p.time_scale - v) < 1e-9)
+        b = row.operator(HTP_OT_SetTimeScale.bl_idname, text=f"{fps}",
+                         depress=(not p.match_blend) and abs(p.time_scale - v) < 1e-9)
         b.value = v
     col.prop(p, "time_scale", text="")
 
-    # THE BUTTON THAT ACTUALLY BUILDS IT. The anchor empty was always a
-    # placeholder for this.
-    #  🔴 NOT IN THE DIALOG. The dialog already carries its own confirm
-    #  button captioned "Build This System" (invoke_props_dialog's
-    #  confirm_text), so drawing this row there put TWO build buttons in
-    #  one window. The sidebar has no confirm of its own, so it keeps this.
+    #  THE BUTTON THAT BUILDS IT - big, with its own icon (3.0.0). NOT IN THE DIALOG: the dialog's confirm button
+    #  is "Build This System" already.
     if not in_dialog:
-        col.separator()
-        row = col.row()
-        row.scale_y = 1.4
+        row = layout.row()
+        row.scale_y = 2.2
         row.enabled = bool(_STASH["picker"]) \
             and p.system not in ("", "__none__")
         row.operator(HTP_OT_BuildParticleSystem.bl_idname,
-                     text="Build This System", icon="PARTICLES")
-    #  NO FOOTER TEXT. What the button does is in its tooltip; two lines of
-    #  0.72-scale caption under it were read once and scrolled past forever.
+                     text="BUILD THIS SYSTEM", **icon_id("build_system", "PARTICLES"))
 
 
 # =============================================================================
@@ -512,6 +550,43 @@ def subtree_control_points(name, hierarchy, seen=None):
     return count, used
 
 
+def material_key(material):
+    """One spelling per material: case, slashes, a `materials/` prefix and
+    the `.vmt` extension all vary between files that mean the same .vmt."""
+    k = str(material).strip().lower().replace("\\", "/")
+    while "//" in k:
+        k = k.replace("//", "/")
+    if k.startswith("materials/"):
+        k = k[len("materials/"):]
+    if k.endswith(".vmt"):
+        k = k[:-4]
+    return k
+
+
+def sprite_material_users(name, hierarchy, counts=None, path=()):
+    """0.24.2: how many render_animated_sprites systems in this effect draw
+    with each material. SFM draws a sprite system TWICE when its material is
+    shared with another sprite system in the effect, once otherwise (measured,
+    calibration kits 1 and 3). Counts every INSTANCE - a definition spawned by
+    two parents is two live systems."""
+    from ..tools import pcf_build
+
+    counts = counts if counts is not None else {}
+    if name in path:
+        return counts
+    sysdef = hierarchy["systems"].get(name)
+    if sysdef is None:
+        return counts
+    plan = pcf_build.plan(sysdef)
+    if (plan.get("renderer") or "").upper() == "ANIMATED_SPRITES" \
+            and not plan.get("container") and plan.get("material"):
+        key = material_key(plan["material"])
+        counts[key] = counts.get(key, 0) + 1
+    for child in hierarchy["children"].get(name, []):
+        sprite_material_users(child, hierarchy, counts, path + (name,))
+    return counts
+
+
 # (Set Control Point Positions is handled PER SYSTEM inside
 #  build_system_tree - each authoring system gets its own override empties,
 #  because sibling systems legally author DIFFERENT offsets for the same CP.)
@@ -519,7 +594,8 @@ def subtree_control_points(name, hierarchy, seen=None):
 
 def build_system_tree(context, name, hierarchy, parent_host=None,
                       collection=None, depth=0, made=None, log=None,
-                      used=None, root=None, cps=None, outline_parent=None):
+                      used=None, root=None, cps=None, outline_parent=None,
+                      name_prefix=None, mat_users=None):
     """Build one system and, depth-first, everything it spawns.
 
     ⚠️ ONE DEFINITION CAN BE SPAWNED BY SEVERAL PARENTS, and each of those is
@@ -533,10 +609,21 @@ def build_system_tree(context, name, hierarchy, parent_host=None,
     made = made if made is not None else []
     log = log if log is not None else []
     used = used if used is not None else {}
+
+    #  WHAT THIS INSTANCE IS CALLED, as opposed to what the DEFINITION is
+    #  called. Everything this add-on re-finds by name is built from `prefix`,
+    #  so two instances of one definition cannot land on each other's objects.
+    #  See api.build_effect's note - a post-hoc rename cannot fix this,
+    #  because each lookup happens at its own moment inside the build.
+    prefix = name_prefix or name
     sysdef = hierarchy["systems"].get(name)
     if sysdef is None:
         log.append(f"{'  ' * depth}!! '{name}' is not in this file")
         return made, log
+    # 0.24.2: which sprite materials this effect shares, counted once at the
+    # top of the tree and handed down (decides each system's Draws).
+    if mat_users is None:
+        mat_users = sprite_material_users(name, hierarchy)
 
     # ── THE EFFECT'S ONE CONTROL EMPTY AND ONE SET OF CONTROL POINTS ─────
     #  Made here, at the top of the recursion, and handed to every system
@@ -544,18 +631,27 @@ def build_system_tree(context, name, hierarchy, parent_host=None,
     if root is None:
         cp_count, cp_used = subtree_control_points(name, hierarchy)
         root = control_points.effect_root(
-            f"{name} · CONTROL", collection=collection,
+            f"{prefix} · CONTROL", collection=collection,
             location=context.scene.cursor.location)
-        cps = control_points.spawn(name, cp_count, root=root,
+        cps = control_points.spawn(prefix, cp_count, root=root,
                                    collection=collection,
                                    indices=sorted(cp_used))
         made.append(root)
-        log.append(f"{'  ' * depth}{name} · CONTROL   "
+        log.append(f"{'  ' * depth}{prefix} · CONTROL   "
                    f"{control_points.describe(cp_count, sorted(cp_used))}, "
                    f"shared by the whole effect")
 
     used[name] = used.get(name, 0) + 1
     unique = name if used[name] == 1 else f"{name}#{used[name]}"
+    _BUILD["i"] += 1
+    try:
+        from ..tools import progress
+        progress.update(_BUILD["i"], max(_BUILD["n"], _BUILD["i"]), item=unique)
+    except Exception:
+        pass
+    #  Per-system objects are re-found by name too (container anchors, control
+    #  point overrides). Namespace them to the instance for the same reason.
+    uname = unique if not name_prefix else f"{name_prefix} · {unique}"
 
     plan = pcf_build.plan(sysdef)
     log.extend(pcf_build.describe_plan(("  " * depth) + unique, plan))
@@ -573,6 +669,7 @@ def build_system_tree(context, name, hierarchy, parent_host=None,
     #  yours to grab or animate. Children inherit the overridden array,
     #  which is SFM's parent -> child CP propagation.
     placements = plan.get("cp_placements") or {}
+    cp_head, cp_world = plan.get("cp_frame") or (0, False)
     my_cps = cps
     if placements and cps:
         my_cps = list(cps)
@@ -580,7 +677,7 @@ def build_system_tree(context, name, hierarchy, parent_host=None,
         for idx in sorted(placements):
             if not (0 <= idx < len(my_cps)):
                 continue
-            em_name = f"{unique} · CP{idx}"
+            em_name = f"{uname} · CP{idx}"
             em = bpy.data.objects.get(em_name)
             if em is None or em.type != "EMPTY":
                 em = bpy.data.objects.new(em_name, None)
@@ -593,9 +690,19 @@ def build_system_tree(context, name, hierarchy, parent_host=None,
                     c.objects.unlink(em)
                 collection.objects.link(em)
             if root is not None:
-                # overrides live with every other control point, under the
-                # effect's TRANSFORM - one grab moves the whole arrangement
-                em.parent = control_points.find_transform(root) or root
+                # 🔴 0.26.3: THE OFFSETS ARE IN THE HEAD CONTROL POINT'S FRAME.
+                # Source transforms them by that CP's matrix, so a beam's far
+                # end turns with CP0 - parked under the effect's TRANSFORM,
+                # the oscillator jet's glow beam ran sideways the moment the
+                # preview turned CP0 by 90. The empty hangs off the head CP
+                # (still under TRANSFORM, so one grab moves everything);
+                # "Set positions in world space" keeps the TRANSFORM itself.
+                head_obj = None
+                if not cp_world and 0 <= cp_head < len(cps):
+                    head_obj = cps[cp_head]
+                if head_obj is None or head_obj is em:
+                    head_obj = control_points.find_transform(root) or root
+                em.parent = head_obj
                 em.matrix_parent_inverse.identity()
             em.location = placements[idx]
             made.append(em)
@@ -604,15 +711,16 @@ def build_system_tree(context, name, hierarchy, parent_host=None,
         if placed:
             log.append(f"{'  ' * depth}  Set Control Point Positions   "
                        f"CP{placed} are {unique}'s OWN empties at the "
-                       f"authored offsets, riding the effect root")
+                       f"authored offsets in CP{cp_head}'s frame"
+                       f"{' (world space)' if cp_world else ''}")
     cps = my_cps
 
     # A container holds children and draws nothing. Give it an anchor empty so
     # the children have something to hang off, and move on.
     if plan.get("container"):
-        anchor = bpy.data.objects.get(unique)
+        anchor = bpy.data.objects.get(uname)
         if anchor is None or anchor.type != "EMPTY":
-            anchor = bpy.data.objects.new(unique, None)
+            anchor = bpy.data.objects.new(uname, None)
         anchor.empty_display_type = "SPHERE"
         anchor.empty_display_size = 16.0
         anchor["htp_system"] = name
@@ -629,7 +737,8 @@ def build_system_tree(context, name, hierarchy, parent_host=None,
             build_system_tree(context, child, hierarchy, parent_host=None,
                               collection=collection, depth=depth + 1,
                               made=made, log=log, used=used,
-                              root=root, cps=cps, outline_parent=anchor)
+                              root=root, cps=cps, outline_parent=anchor,
+                              name_prefix=name_prefix, mat_users=mat_users)
         return made, log
 
     # material -> .vmt -> $basetexture -> .vtf
@@ -673,6 +782,16 @@ def build_system_tree(context, name, hierarchy, parent_host=None,
             log.append("      DRIVER (no material - a motion carrier); "
                        "invisible, children ride it")
 
+    # 0.24.2: A SPRITECARD MATERIAL ON A TRAIL DRAWS NOTHING IN SFM - measured
+    # twice (calibration kits 2 and 4: blend, $additive and $addoverblend on
+    # flat and ramp textures, not one pixel, while UnlitGeneric trails beside
+    # them drew). Built as an invisible driver, so its children still ride it.
+    if not driver and (plan.get("renderer") or "").upper() == "SPRITE_TRAIL" \
+            and str(chain.get("shader") or "").strip().lower() == "spritecard":
+        driver = True
+        log.append("      DRAWS NOTHING  a SpriteCard material on a trail - SFM "
+                   "does not draw it (measured); invisible, children ride it")
+
     # The material FAMILY, decided once in tools/vmt.py: a Refract material
     # imports as a WARP - its picture is a normal map that bends what renders
     # behind the cards, not an emissive sprite. (A driver has no picture.)
@@ -684,24 +803,50 @@ def build_system_tree(context, name, hierarchy, parent_host=None,
                    f"{warp['refract_amount']:g}, $bluramount "
                    f"{warp['blur_amount']:g}")
 
+    # 0.24.2: TWO DRAWS ONLY FOR A SHARED SPRITE MATERIAL (measured).
+    n_draws = 1
+    if (plan.get("renderer") or "").upper() == "ANIMATED_SPRITES" \
+            and plan["material"]:
+        sharers = mat_users.get(material_key(plan["material"]), 0)
+        if sharers >= 2:
+            n_draws = 2
+            log.append(f"      drawn twice   {sharers} sprite systems in this "
+                       f"effect use this material - SFM draws each twice")
+
     try:
         host, info = build_ras(
-            context, chain["vtf"], plan["values"],
+            context, None if driver else chain["vtf"], plan["values"],
             emitter="SIMULATION", renderer=plan["renderer"],
             cp_count=plan["cp_count"], stack=plan["stack"],
             parent=parent_host,
-            # The SFM system name, which is unique in the file - so two
-            # children sharing one texture stay two objects.
-            host_name=unique,
+            # The SFM system name, NAMESPACED TO THIS INSTANCE.
+            #
+            # `unique` alone is unique within one .pcf - which is all it
+            # needed to be while one effect was built at a time. It is NOT
+            # unique across two INSTANCES of the same effect, and build_ras
+            # re-finds its host by this name (see its own comment a few lines
+            # above the lookup). So the second fire found the first fire's
+            # host meshes and took them: the first effect kept its CONTROL,
+            # its TRANSFORM and its control points, and lost every mesh that
+            # carries the geometry nodes.
+            #
+            # Same failure the comment at that lookup already describes for
+            # siblings, one level up - across instances rather than within
+            # a file.
+            host_name=uname,
             overbright=vmt_tool.overbright(chain["values"]),
             additive=vmt_tool.is_additive(chain["values"]),
+            blend=vmt_tool.blend_mode(chain["values"]),
             warp=warp,
             # The effect's own control empty and its ONE shared set of
             # control points - not a fresh stack per system.
-            root=root, cps=cps, collection=collection)
+            root=root, cps=cps, collection=collection, draws=n_draws)
     except Exception as exc:
-        log.append(f"      FAILED to build: {exc}")
-        print(f"{TAG}  build failed for {name}: {exc}")
+        log.append(f"      FAILED to build: {type(exc).__name__}: {exc}")
+        htlog.failure("Could not build a system", pcf=_STASH.get("path") or None, system=name, exc=exc,
+                      stage="building its geometry nodes (renderer %s, material %s)"
+                            % (plan.get("renderer") or "?", plan.get("material") or "none"),
+                      hint="the rest of the effect still builds; press PRINT HELP (Dev tab) and send the .txt")
         return made, log
 
     host["htp_system"] = name
@@ -723,8 +868,73 @@ def build_system_tree(context, name, hierarchy, parent_host=None,
         build_system_tree(context, child, hierarchy, parent_host=host,
                           collection=collection, depth=depth + 1,
                           made=made, log=log, used=used,
-                          root=root, cps=cps, outline_parent=host)
+                          root=root, cps=cps, outline_parent=host,
+                          name_prefix=name_prefix, mat_users=mat_users)
     return made, log
+
+
+_BUILD = {"i": 0, "n": 0}
+
+
+def subtree_names(name, hierarchy, seen=None):
+    """Every system a build of `name` makes, itself first (a definition reached twice counts twice, as it builds)."""
+    seen = seen if seen is not None else []
+    seen.append(name)
+    for child in hierarchy["children"].get(name, []):
+        if seen.count(child) < 8:
+            subtree_names(child, hierarchy, seen)
+    return seen
+
+
+def auto_camera(context, pcf_file, system, center):
+    """3.0.0: no camera in the scene -> one framed on the effect's estimated size (tools/pcf_size). The note, or ""."""
+    if any(o.type == "CAMERA" for o in context.scene.objects):
+        return ""
+    try:
+        from ..tools import pcf_size
+        from .op_grid import frame_camera
+        res = pcf_size.estimate(pcf_file, system)
+        t = res["total"]
+        cam = frame_camera(context, center, (t["width"], t["depth"], t["up"], t["down"]))
+        return ("no camera was in the scene - '%s' frames it (the effect is about %d x %d x %d units)"
+                % (cam.name, round(t["width"]), round(t["depth"]), round(t["height"])))
+    except Exception as exc:
+        print(f"{TAG}  automatic camera skipped: {type(exc).__name__}: {exc}")
+        return ""
+
+
+def _tell(context, title, lines):
+    """A short popup for what the import did by itself - never in the background, never when Errors is Console."""
+    if bpy.app.background or getattr(context, "window", None) is None or op_prefs.feedback() == "QUIET":
+        return
+
+    def draw(menu, _ctx):
+        col = menu.layout.column(align=True)
+        for ln in lines:
+            col.label(text=ln)
+
+    try:
+        context.window_manager.popup_menu(draw, title=title, icon="OUTLINER_OB_CAMERA")
+    except Exception:
+        pass
+
+
+from bpy.app.handlers import persistent
+
+
+@persistent
+def _follow_playhead(scene, _depsgraph=None):
+    """3.0.0: Start Time follows the timeline while the clock is on."""
+    p = getattr(scene, "htp", None)
+    if p is None or not p.follow_playhead:
+        return
+    t = scene.frame_current * seconds_per_frame(scene)
+    if abs(p.start_time - t) > 1e-6:
+        _AUTO["on"] = True
+        try:
+            p.start_time = t
+        finally:
+            _AUTO["on"] = False
 
 
 class HTP_OT_BuildParticleSystem(Operator):
@@ -740,7 +950,12 @@ socket you can edit.
 Everything the importer cannot translate is REPORTED in the console,
 never dropped silently; a warning on this button afterwards means go read
 that list. Systems using the simulation emitter need playback from
-frame 1 - a simulation cannot be scrubbed backwards into"""
+frame 1 - a simulation cannot be scrubbed backwards into.
+
+A bar shows the build system by system. A scene with no camera gets one,
+framed on the effect's estimated size, and a note says so.
+
+THIS FEATURE WAS ADDED IN VERSION 3.0.0 AND IS IN EXPERIMENTAL STAGE"""
     bl_idname = "htp.build_particle_system"
     bl_label = "Build Particle System"
     bl_options = {"REGISTER", "UNDO"}
@@ -758,26 +973,43 @@ frame 1 - a simulation cannot be scrubbed backwards into"""
             self.report({"ERROR"}, "Pick a .pcf file and a system first.")
             return {"CANCELLED"}
 
+        pcf_file = _STASH.get("path") or bpy.path.abspath(p.definition_file)
+        print(f"{TAG}  building '{p.system}' from {pcf_file}")
+        if p.match_blend:
+            _AUTO["on"] = True
+            try:
+                p.time_scale = blend_time_scale(context.scene)
+            finally:
+                _AUTO["on"] = False
+        cursor = context.scene.cursor.location.copy()
         coll = particle_collection(context, p.system)
-        if self.include_children:
-            made, log = build_system_tree(context, p.system, hierarchy,
-                                          collection=coll)
-        else:
-            trimmed = dict(hierarchy)
-            trimmed["children"] = dict(hierarchy["children"])
-            trimmed["children"][p.system] = []
-            made, log = build_system_tree(context, p.system, trimmed,
-                                          collection=coll)
+        from ..tools import progress
+        tree = hierarchy if self.include_children else dict(hierarchy, children=dict(
+            hierarchy["children"], **{p.system: []}))
+        _BUILD.update(i=0, n=len(subtree_names(p.system, tree)))
+        with progress.job("Source Particle Import - Building %s" % p.system, phase_total=0):
+            progress.phase("%s - %d system(s)" % (Path(pcf_file).name, _BUILD["n"]))
+            made, log = build_system_tree(context, p.system, tree, collection=coll)
 
         print(f"{TAG}  " + "=" * 62)
         for line in log:
             print(f"{TAG}{line}")
         print(f"{TAG}  " + "=" * 62)
 
+        problems = [ln.strip() for ln in log if "FAILED" in ln or "!!" in ln]
         if not made:
-            self.report({"ERROR"},
-                        f"Nothing could be built - see the console for why")
+            msg = htlog.failure("Nothing could be built", pcf=pcf_file, system=p.system,
+                                stage="building the effect", extra=["what the build said:"] +
+                                ["  " + ln for ln in problems[:12]],
+                                hint="the lines above name the system and the file each problem came from")
+            self.report({"ERROR"}, msg)
+            htlog.popup_failure(context, "Nothing could be built from %s" % Path(pcf_file).name,
+                                [msg] + problems[:12])
             return {"CANCELLED"}
+        if problems:
+            htlog.event("WARNING", "Built '%s' from %s with %d problem(s)" % (p.system, Path(pcf_file).name,
+                                                                             len(problems)),
+                        ["file    : %s" % pcf_file] + problems[:20], pcf=pcf_file)
 
         #  THE DIALOG'S START TIME FINALLY DRIVES SOMETHING: it lands on
         #  every system's "Time Offset" socket, so the whole effect begins
@@ -802,6 +1034,13 @@ frame 1 - a simulation cannot be scrubbed backwards into"""
         dropped = sum(int(o.get("htp_dropped", 0)) for o in made)
         msg = (f"Built {len(made)} system(s) from '{p.system}' "
                f"· play from frame 1")
+        cam_note = auto_camera(context, pcf_file, p.system, cursor)
+        if cam_note:
+            msg += " · " + cam_note
+            from ..tools import htlog
+            htlog.event("INFO", "Imported '%s' and created a camera" % p.system, [cam_note], pcf=pcf_file)
+            _tell(context, "Particle imported, camera created",
+                  ["'%s' is in the scene." % p.system, cam_note])
         if dropped:
             # Say it out loud. An import that quietly drops a third of the
             # authoring looks identical to one that worked.
@@ -863,10 +1102,32 @@ under the modifier's SYSTEM PROPERTIES"""
 
     value: FloatProperty(default=1.0)
 
+    @classmethod
+    def description(cls, context, properties):
+        if properties.value < 0:
+            return ("Time Scale from this .blend's frame rate (fps / 24), read again at every build - change the "
+                    "scene's frame rate later and the effect follows.\n\n"
+                    "THIS FEATURE WAS ADDED IN VERSION 3.0.0 AND IS IN EXPERIMENTAL STAGE")
+        return cls.__doc__
+
     def execute(self, context):
         p = props(context)
+        if p is not None and self.value < 0:
+            #  3.0.0: Match .blend
+            _AUTO["on"] = True
+            try:
+                p.match_blend = True
+                p.time_scale = blend_time_scale(context.scene)
+            finally:
+                _AUTO["on"] = False
+            return {"FINISHED"}
         if p is not None:
-            p.time_scale = self.value
+            p.match_blend = False
+            _AUTO["on"] = True
+            try:
+                p.time_scale = self.value
+            finally:
+                _AUTO["on"] = False
         return {"FINISHED"}
 
 
@@ -1000,7 +1261,11 @@ CLASSES = (HTP_Props, HTP_OT_SetScale, HTP_OT_SetTimeScale,
 def register():
     bpy.types.Scene.htp = PointerProperty(type=HTP_Props)
     _clear_stash()
+    if _follow_playhead not in bpy.app.handlers.frame_change_post:
+        bpy.app.handlers.frame_change_post.append(_follow_playhead)
 
 
 def unregister():
+    if _follow_playhead in bpy.app.handlers.frame_change_post:
+        bpy.app.handlers.frame_change_post.remove(_follow_playhead)
     del bpy.types.Scene.htp

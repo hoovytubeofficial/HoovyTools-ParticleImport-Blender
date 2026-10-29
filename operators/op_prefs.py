@@ -1,5 +1,5 @@
 # =============================================================================
-#  operators/op_prefs.py  -  Edit > Preferences > Add-ons > HoovyTools
+#  operators/op_prefs.py  -  Edit > Preferences > Add-ons > Source Particle Import
 # =============================================================================
 #
 #  YOUR PREFERRED PATHS. paths.py auto-detects the SFM install (registry,
@@ -80,10 +80,40 @@ def trail_sprite_dir():
     return _pref_path("trail_dir") or paths.trail_sprite_dir(sfm_override())
 
 
+def _changed(self, _context=None):
+    """3.0.0: every preference change keeps _config/config.json in step, once that file exists (tools/config)."""
+    from ..tools import config
+    config.save(self)
+
+
 def _rescan(self, context):
     #  The auto-detector caches its answer; a changed override must not keep
     #  showing the stale one.
     paths.refresh()
+    _changed(self)
+
+
+def _push_log_settings(self, _context=None):
+    """3.0.0: the log switches live in tools/htlog as plain values - print can run on a worker thread."""
+    from ..tools import htlog
+    htlog.SETTINGS["log_to_file"] = bool(getattr(self, "log_to_file", True))
+
+
+def _log_to_file_changed(self, context):
+    _push_log_settings(self)
+    _changed(self)
+
+
+def push_log_settings():
+    p = prefs()
+    if p is not None:
+        _push_log_settings(p)
+
+
+def feedback():
+    """REPORT / POPUP / QUIET - how a failure is shown (the console and the log get it either way)."""
+    p = prefs()
+    return str(getattr(p, "feedback", "POPUP"))
 
 
 def fancy_layouts():
@@ -110,19 +140,19 @@ class HTP_AddonPrefs(AddonPreferences):
         name="Particles (.pcf)",
         description="Where the .pcf browser opens. Empty: the detected "
                     "usermod/particles",
-        subtype="DIR_PATH")
+        subtype="DIR_PATH", update=_changed)
     texture_dir: StringProperty(
         name="Textures (.vtf / .vmt)",
         description="Where the texture and material browsers open. Empty: "
                     "the first materials folder that exists under the "
                     "detected usermod",
-        subtype="DIR_PATH")
+        subtype="DIR_PATH", update=_changed)
     trail_dir: StringProperty(
         name="Beam / Trail Textures",
         description="Where the rope and sprite-trail browsers open. Empty: "
                     "the known beam folders (tf/materials/effects and "
                     "friends), most specific first",
-        subtype="DIR_PATH")
+        subtype="DIR_PATH", update=_changed)
     viewport_facing: bpy.props.BoolProperty(
         name="Viewport-Facing Sprites (Camera Source 2)",
         description="Build systems able to face the VIEWPORT as you orbit "
@@ -133,7 +163,7 @@ class HTP_AddonPrefs(AddonPreferences):
                     "built in when asked. Off: mode 2 behaves like mode 0 "
                     "(active camera). Applies to NEW builds; re-import an "
                     "effect to change it",
-        default=False)
+        default=False, update=_changed)
     fancy_layouts: bpy.props.BoolProperty(
         name="Beautiful Node Layouts",
         description="Arrange every built node graph for reading: per-section "
@@ -144,29 +174,63 @@ class HTP_AddonPrefs(AddonPreferences):
                     "time. Turn it off to import fast with plain "
                     "builder-placed graphs - colours and notes stay either "
                     "way",
-        default=True)
+        default=True, update=_changed)
+    log_to_file: bpy.props.BoolProperty(
+        name="Write Log File",
+        description="Keep everything this add-on prints in _Logs/Source Particle Import_<date>.log (one file per "
+                    "Blender session, the newest 20 kept). PRINT HELP puts the newest one into the .txt you send. "
+                    "The console prints either way.\n\nTHIS FEATURE WAS ADDED IN VERSION 3.0.0 AND IS IN "
+                    "EXPERIMENTAL STAGE",
+        default=True, update=_log_to_file_changed)
+    feedback: bpy.props.EnumProperty(
+        name="Errors",
+        description="How a failed import or tool tells you. Every failure is also printed (marked "
+                    "[Source Particle Import]) and logged with the .pcf it was reading.\n\nTHIS FEATURE WAS ADDED "
+                    "IN VERSION 3.0.0 AND IS IN EXPERIMENTAL STAGE",
+        items=[("POPUP", "Popup", "The status bar, plus a popup with the details and a Print Help button"),
+               ("REPORT", "Status Bar", "Blender's status bar and Info editor only"),
+               ("QUIET", "Console Only", "Nothing on screen - the console and the log file only")],
+        default="POPUP", update=_changed)
 
     def draw(self, context):
-        col = self.layout.column()
-        col.label(text="Preferred paths - empty fields keep auto-detecting:")
-        col.prop(self, "sfm_usermod")
-        #  Show what detection would answer RIGHT NOW, so "is my override
-        #  even needed?" is a glance, not an experiment.
-        found = find_usermod()
-        row = col.row()
-        row.enabled = False
-        if found is not None:
-            row.label(text=f"Using: {found}", icon="CHECKMARK")
+        draw_settings(self.layout, self, sidebar=False)
+        box = self.layout.box()
+        box.label(text="Reports", icon="TEXT")
+        col = box.column()
+        col.prop(self, "log_to_file")
+        row = col.row(align=True)
+        row.prop(self, "feedback", expand=True)
+
+
+def draw_settings(layout, p, sidebar=True):
+    """Source Filmmaker, Browsers Open In, Building - the preferences page and Dev > Configure draw the same
+    three boxes. In the sidebar a folder's name sits above its field - the panel is too narrow for both on one line."""
+    box = layout.box()
+    box.label(text="Source Filmmaker", icon="FILE_FOLDER")
+    col = box.column(align=True)
+    col.prop(p, "sfm_usermod", text="")
+    found = find_usermod()
+    status = col.row()
+    status.enabled = False
+    status.label(text=str(found) if found is not None else "found by itself when empty - not found now",
+                 icon="CHECKMARK" if found is not None else "ERROR")
+
+    box = layout.box()
+    box.label(text="Browsers Open In", icon="FILEBROWSER")
+    col = box.column()
+    for key in ("pcf_dir", "texture_dir", "trail_dir"):
+        if sidebar:
+            sub = col.column(align=True)
+            sub.label(text=p.bl_rna.properties[key].name)
+            sub.prop(p, key, text="")
         else:
-            row.label(text="No SFM install found - set the folder above",
-                      icon="ERROR")
-        col.separator()
-        col.prop(self, "pcf_dir")
-        col.prop(self, "texture_dir")
-        col.prop(self, "trail_dir")
-        col.separator()
-        col.prop(self, "fancy_layouts")
-        col.prop(self, "viewport_facing")
+            col.prop(p, key)
+
+    box = layout.box()
+    box.label(text="Building", icon="PARTICLES")
+    col = box.column()
+    col.prop(p, "fancy_layouts")
+    col.prop(p, "viewport_facing")
 
 
 class HTP_OT_OpenPrefs(bpy.types.Operator):
@@ -177,7 +241,7 @@ at the most useful folder it can find. The preferences let you override
 any of that: point at a different usermod, or choose your own folders for
 the .pcf, texture and beam browsers"""
     bl_idname = "htp.open_prefs"
-    bl_label = "HoovyTools Preferences"
+    bl_label = "Source Particle Import Preferences"
     bl_options = {"INTERNAL"}
 
     def execute(self, context):
@@ -191,3 +255,12 @@ the .pcf, texture and beam browsers"""
 
 
 CLASSES = (HTP_AddonPrefs, HTP_OT_OpenPrefs)
+
+
+def register():
+    #  3.0.0: _config/config.json, when you have one, wins over what Blender saved (tools/config)
+    from ..tools import config
+    _done, problems = config.apply(prefs())
+    for line in problems:
+        print("[CONFIG]  skipped - %s" % line)
+    push_log_settings()

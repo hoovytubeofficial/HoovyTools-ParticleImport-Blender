@@ -251,6 +251,7 @@ for the neutral build."""
                                    key_cps=self.key_control_points,
                                    overbright=src["overbright"],
                                    additive=src["additive"],
+                                   blend=src.get("blend"),
                                    warp=src.get("warp"))
         except Exception as exc:
             self.report({"ERROR"}, f"Could not build the rope: {exc}")

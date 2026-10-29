@@ -806,12 +806,13 @@ effect slides the other way and stays pinned to the world origin.
     #  nothing and the beam collapsed onto CP0. When the file carries both,
     #  Maintain wins - it is the per-frame holder, so it has the last word.
     _in_stack = [o for o in ("Movement Maintain Position Along Path",
-                             "Position Along Path Sequential")
+                             "Position Along Path Sequential",
+                             "Position Along Path Random")
                  if (stack or {}).get(o)]
     op_path = _in_stack[0] if _in_stack else "Position Along Path Sequential"
     if len(_in_stack) > 1:
-        print(f"[HT_RAS]  both path operators in this system - "
-              f"{op_path!r} places the particles; the other panel is inert")
+        print(f"[HT_RAS]  {len(_in_stack)} path operators in this system - "
+              f"{op_path!r} places the particles; the other panels are inert")
     if groups.get("path_seq") is not None:
         start_disp = ("Control Point"
                       if op_path == "Position Along Path Sequential"
@@ -841,12 +842,16 @@ effect slides the other way and stays pinned to the world origin.
         _lp(ng, p_end, pth, _in(pth, "End"))
         _lk(ng, s_eul, 0, pth, _in(pth, "Start Rotation"))
         _lk(ng, e_eul, 0, pth, _in(pth, "End Rotation"))
+        rolled = op_path == "Position Along Path Random"
         for disp, sock in (("Particles To Map", "Particles To Map"),
                            ("Bulge", "Bulge"),
                            ("Bulge Control", "Bulge Control"),
                            ("Mid Point Position", "Mid Point"),
                            ("Max Distance", "Max Distance")):
+            if rolled and disp == "Particles To Map":
+                continue            # rolled per particle - nothing to count
             _lk(ng, gi, gs(op_path, disp), pth, _in(pth, sock))
+        _sv(pth, _in(pth, "Random Fraction"), rolled)
         _lk(ng, gi, g("Scale"), pth, _in(pth, "Scale"))
         _lp(ng, PID, pth, _in(pth, "ID"))
         _lk(ng, gi, g("Seed"), pth, _in(pth, "Seed"))
@@ -1895,9 +1900,10 @@ particle at the same point in its own life rather than all at once.
         _lk(ng, gi, gon("Radius Scale", inst), r, _in(r, "Enable"))
         _lk(ng, rad_chain, 0, r, _in(r, "Radius In"))
         _lp(ng, AGE, r, _in(r, "Age"))
+        _lk(ng, life, 0, r, _in(r, "Lifetime"))            # 0.24.1: life fractions
         for a, b in (("Start Scale", "Start Scale"), ("End Scale", "End Scale"),
                      ("Start Time", "Start Time"), ("End Time", "End Time"),
-                     ("Ease In And Out", "Ease")):
+                     ("Ease In And Out", "Ease"), ("Scale Bias", "Bias")):
             _lk(ng, gi, gs("Radius Scale", a, inst), r, _in(r, b))
         _lk(ng, envelope_for("Radius Scale", inst,
                              (980 + (inst - 1) * 240, -320)),
@@ -2043,6 +2049,7 @@ particle at the same point in its own life rather than all at once.
         _lk(ng, gi, gon(op, inst), c, _in(c, "Enable"))
         _lk(ng, colour_chain, 0, c, _in(c, "Color In"))
         _lp(ng, AGE, c, _in(c, "Age"))
+        _lk(ng, life, 0, c, _in(c, "Lifetime"))            # 0.24.1: life fractions
         _lk(ng, gi, gs(op, "Fade To", inst), c, _in(c, "Fade To"))
         _lk(ng, gi, gs(op, "Fade Start Time", inst), c, _in(c, "Start Time"))
         _lk(ng, gi, gs(op, "Fade End Time", inst), c, _in(c, "End Time"))

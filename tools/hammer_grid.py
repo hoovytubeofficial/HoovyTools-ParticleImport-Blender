@@ -363,6 +363,95 @@ def build(extent=256.0, checker=True, markers=True, set_units=True,
     return obj, {"extent": e, "objects": len(made), "units_set": set_units}
 
 
+LINE_MATERIAL_NAME = "SFM Grid Lines"
+
+
+def build_line_material():
+    """3.0.0: plain white, unlit, slightly see-through - the lines are the only geometry, so everything between
+    them is empty and a particle under the grid shows."""
+    mat = bpy.data.materials.get(LINE_MATERIAL_NAME) or bpy.data.materials.new(LINE_MATERIAL_NAME)
+    mat.diffuse_color = (0.92, 0.92, 0.92, 0.8)          # Solid mode draws this
+    if mat.node_tree is None:
+        mat.use_nodes = True
+    nt = mat.node_tree
+    nt.nodes.clear()
+    emit = nt.nodes.new("ShaderNodeEmission")
+    emit.inputs["Color"].default_value = (1.0, 1.0, 1.0, 1.0)
+    emit.inputs["Strength"].default_value = 1.0
+    clear = nt.nodes.new("ShaderNodeBsdfTransparent")
+    mix = nt.nodes.new("ShaderNodeMixShader")
+    mix.inputs["Fac"].default_value = 0.8
+    out = nt.nodes.new("ShaderNodeOutputMaterial")
+    emit.location, clear.location, mix.location, out.location = (-300, -60), (-300, 120), (-80, 40), (140, 40)
+    nt.links.new(clear.outputs[0], mix.inputs[1])
+    nt.links.new(emit.outputs[0], mix.inputs[2])
+    nt.links.new(mix.outputs[0], out.inputs["Surface"])
+    for attr, value in (("surface_render_method", "BLENDED"), ("blend_method", "BLEND")):
+        try:
+            setattr(mat, attr, value)
+        except Exception:
+            pass
+    return mat
+
+
+def build_lines(extent=128.0, spacing=16.0, width=0.35, markers=False, set_units=True, hide_in_render=True):
+    """3.0.0: thin white strips along every
+    `spacing` units out to `extent`, nothing between them. Returns (object, info)."""
+    scene = bpy.context.scene
+    old_coll = bpy.data.collections.get(COLLECTION_NAME)
+    if old_coll is not None:
+        for obj in list(old_coll.objects):
+            bpy.data.objects.remove(obj, do_unlink=True)
+        bpy.data.collections.remove(old_coll)
+    from ..operators.op_vtf import ROOT_COLLECTION
+    root = bpy.data.collections.get(ROOT_COLLECTION) or bpy.data.collections.new(ROOT_COLLECTION)
+    if root.name not in scene.collection.children:
+        try:
+            scene.collection.children.link(root)
+        except Exception:
+            pass
+    coll = bpy.data.collections.new(COLLECTION_NAME)
+    root.children.link(coll)
+
+    e, step, hw = float(extent), max(1e-3, float(spacing)), max(1e-4, float(width)) * 0.5
+    n = max(1, int(round(e / step)))
+    e = n * step
+    verts, faces = [], []
+    for i in range(-n, n + 1):
+        t = i * step
+        for quad in (((t - hw, -e), (t + hw, -e), (t + hw, e), (t - hw, e)),
+                     ((-e, t - hw), (e, t - hw), (e, t + hw), (-e, t + hw))):
+            b = len(verts)
+            verts += [(x, y, 0.0) for x, y in quad]
+            faces.append((b, b + 1, b + 2, b + 3))
+    mesh = bpy.data.meshes.new(OBJECT_NAME + " mesh")
+    mesh.from_pydata(verts, [], faces)
+    mesh.update()
+    obj = bpy.data.objects.new(OBJECT_NAME, mesh)
+    coll.objects.link(obj)
+    obj.hide_render = bool(hide_in_render)
+    obj.data.materials.append(build_line_material())
+    made = [obj]
+    if markers:
+        origin = bpy.data.objects.new("0,0,0", None)
+        origin.empty_display_type = "PLAIN_AXES"
+        origin.empty_display_size = 8.0
+        coll.objects.link(origin)
+        scout = bpy.data.objects.new(f"TF2 Scout · {SCOUT_HEIGHT:.4g} HU tall", None)
+        scout.empty_display_type = "SINGLE_ARROW"
+        scout.empty_display_size = SCOUT_HEIGHT
+        scout.show_name = True
+        coll.objects.link(scout)
+        made += [origin, scout]
+    if set_units:
+        try:
+            scene.unit_settings.system = "NONE"
+        except Exception as exc:
+            print(f"{TAG}  unit system: {exc}")
+    print(f"{TAG}  {int(2 * e)} x {int(2 * e)} HU grid, {step:g} HU squares, lines {2 * hw:g} HU")
+    return obj, {"extent": e, "objects": len(made), "units_set": set_units}
+
+
 def remove():
     """Take it away again. Returns how many objects went."""
     coll = bpy.data.collections.get(COLLECTION_NAME)

@@ -71,6 +71,7 @@ def read_material(path):
     chain = vmt_tool.resolve_path(path, _roots(path))
     chain["overbright"] = vmt_tool.overbright(chain["values"])
     chain["additive"] = vmt_tool.is_additive(chain["values"])
+    chain["blend"] = vmt_tool.blend_mode(chain["values"])    # 0.24.0: the real flags
     chain["material_class"] = vmt_tool.material_class(
         chain["shader"], chain["texture_key"])
     chain["warp"] = (vmt_tool.warp_params(chain["values"])

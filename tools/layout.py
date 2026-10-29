@@ -1065,12 +1065,47 @@ def _apply_table(nt, table, version):
             claimed.add(n.name)
 
     total = sum(1 for n in nodes if n.bl_idname != "NodeFrame")
-    #  THE GATE IS COVERAGE OF THE BUILT GRAPH, not of the table: a variant
-    #  build legitimately lacks table entries (fewer CPs, absent stacks), but
-    #  if the table cannot place most of what IS here, it is the wrong
-    #  layout and the normal tidy stands.
-    if not total or len(match) / total < 0.75:
-        return {"applied": False, "matched": len(match), "of": total}
+    #  🔴 THE GATE ASKS "DID THE TABLE FIND ITS NODES?", NOT "DOES THE TABLE
+    #  COVER THE GRAPH?" - and getting that backwards threw away every hand
+    #  layout on a real import.
+    #
+    #  It used to divide by the BUILT graph, so a table that matched 160 of
+    #  its own 160 entries - a PERFECT score - was refused at 160/230 = 70%
+    #  because the build also carried 70 nodes no table could ever own: the
+    #  per-sequence ladder ("seq 5 start", "seq 5 length", ... four uniquely
+    #  labelled nodes PER SEQUENCE, and a sheet can have ten), extra operator
+    #  instances, longer CP chains. The richer the effect, the more certain
+    #  the refusal - exactly backwards, since that is where a clean layout is
+    #  worth the most, and no amount of hand-cleaning could ever fix it
+    #  (cleaning a 10-sequence file just moves the impossibility to 4).
+    #
+    #  What the gate is actually for is catching the WRONG table (the family
+    #  key picked badly, or the builder changed shape underneath it). That
+    #  shows up as table entries failing to find identities - table-side
+    #  coverage. The build-side number stays as a sanity FLOOR, so a handful
+    #  of table entries can never claim to lay out a huge graph.
+    #
+    #  Surplus nodes are not homeless: they keep their builder position
+    #  inside their section frame and ride along with it (below).
+    #  A VARIANT MISSES IN BOTH DIRECTIONS, AND BOTH ARE LEGITIMATE:
+    #    build RICHER than the table  - ten sequences, stacked operators, a
+    #      longer CP chain: surplus nodes with no entry to claim them
+    #      (measured: a trail at 160/160 entries but only 70% of the graph);
+    #    build SIMPLER than the table - the workbench was cleaned from a
+    #      fatter system, so entries find no node (measured: sprites at
+    #      164/227 entries covering 87% of the graph).
+    #  Neither means the table is WRONG - and the wrong-family case cannot
+    #  even reach here, because TABLES is keyed by the renderer group the
+    #  system instances. So the gate only has to catch a table that is
+    #  genuinely stale (the builder changed shape underneath it), which
+    #  shows as BOTH numbers collapsing. Anything else applies, and the
+    #  surplus rides along inside its section frame.
+    entries = sum(1 for _n, (_p, _l, _w, _i) in table["NODES"].items())
+    tcov = (len(match) / entries) if entries else 0.0
+    bcov = (len(match) / total) if total else 0.0
+    if not total or not entries or tcov < 0.5 or bcov < 0.25:
+        return {"applied": False, "matched": len(match), "of": total,
+                "entries": entries, "table_cov": tcov, "build_cov": bcov}
 
     frames = {}
     for name, create, label, lsize, shrink, colour, _p, _loc, size \
@@ -1171,11 +1206,20 @@ def tidy(ng, prune=True, headroom=True, spread=False, corners=True,
     if hand is not None:
         report["hand_layout"] = hand
         if verbose and hand.get("applied"):
+            extra = hand.get("of", 0) - hand.get("placed", 0)
             print(f"[HT_LAYOUT]  {ng.name}: hand-cleaned layout applied "
-                  f"({hand['placed']} nodes, {hand['frames']} frames)")
+                  f"({hand['placed']} nodes, {hand['frames']} frames"
+                  + (f", {extra} extra node(s) ride in their section frames)"
+                     if extra > 0 else ")"))
         elif hand.get("applied") is False:
-            print(f"[HT_LAYOUT]  {ng.name}: hand layout refused - only "
-                  f"{hand['matched']}/{hand['of']} identities matched")
+            #  Say WHICH coverage failed - table-side means the wrong table
+            #  or a builder change; build-side means a table far too small
+            #  for this graph. Guessing between them used to cost an hour.
+            print(f"[HT_LAYOUT]  {ng.name}: hand layout refused - "
+                  f"{hand['matched']}/{hand.get('entries', '?')} table "
+                  f"entries placed ({hand.get('table_cov', 0):.0%}), "
+                  f"covering {hand['matched']}/{hand['of']} built nodes "
+                  f"({hand.get('build_cov', 0):.0%})")
     if gradient:
         report["frames"] = recolour_frames(ng)
         report["gradient"] = gradient_nodes(ng)
