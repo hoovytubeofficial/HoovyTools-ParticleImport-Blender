@@ -628,7 +628,7 @@ def draw_configure(layout, context):
 
 
 LINKS = {
-    "patreon": ("Patreon", "FUND", "https://www.patreon.com/HoovyTube", "HoovyTube on Patreon"),
+    "patreon": ("Patreon", "FUND", "https://www.patreon.com/HoovyTube308", "HoovyTube on Patreon"),
     "website": ("Website", "WORLD", "https://hoovytube.com", "HoovyTube's website"),
     "github": ("GitHub", "URL", "https://github.com/hoovytubeofficial/HoovyTools-ParticleImport-Blender",
                "The source of truth: the newest version of Source Particle Import, its code and its changes"),

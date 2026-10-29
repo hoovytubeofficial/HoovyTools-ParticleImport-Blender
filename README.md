@@ -151,7 +151,7 @@ Some tools also come as a **Text Editor version** - a plain script that does the
 
 ## Credits
 
-Made by **HoovyTube** - [Patreon](https://www.patreon.com/HoovyTube) - [Website](https://hoovytube.com) -
+Made by **HoovyTube** - [Patreon](https://www.patreon.com/HoovyTube308) - [Website](https://hoovytube.com) -
 [GitHub](https://github.com/hoovytubeofficial/HoovyTools-ParticleImport-Blender), the source of truth for new
 versions.
 
