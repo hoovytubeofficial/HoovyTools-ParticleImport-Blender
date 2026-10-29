@@ -332,6 +332,46 @@ def is_additive(values):
     return False
 
 
+def blend_mode(values):
+    """How SpriteCard composites this material - MEASURED, not guessed (0.24.0).
+
+    Measured 2026-10-28 in SFM's particle editor with a calibration kit: a
+    grey ramp (colour left -> right) x alpha ramp (top -> bottom) drawn once
+    per blend flag on pure black, then every pixel fitted - 1 to 3 grey
+    levels RMS on all 16 tiles. Everything happens in LINEAR light (sRGB in,
+    sRGB out), the colour is clamped to 1 before it is blended:
+
+        blend         no flag          colour x alpha       OVER the frame
+        additive      $additive 1      colour x alpha       ADDED to the frame
+        addoverblend  $addoverblend 1  colour (NOT x alpha) + (1 - alpha) frame
+        addself       $addself k       colour x (1+k) x alpha + (1 - alpha) frame
+
+    🔴 $addoverblend IS NOT ADDITIVE. `is_additive` lumped the two together,
+    so the shader threw the texture's alpha away and used brightness as
+    opacity - and most smoke is $addoverblend, so dark smoke went see-through.
+
+    Precedence when several flags are set (only single flags were measured):
+    $addself, then $addoverblend, then $additive."""
+    def num(key):
+        raw = values.get(key)
+        if raw is None:
+            return 0.0
+        try:
+            return float(str(raw).strip().strip('"'))
+        except ValueError:
+            return 0.0
+    k = num("$addself")
+    if k != 0.0:
+        mode = "addself"
+    elif num("$addoverblend") != 0.0:
+        mode = "addoverblend"
+    elif num("$additive") != 0.0:
+        mode = "additive"
+    else:
+        mode = "blend"
+    return {"mode": mode, "addself": k, "overbright": overbright(values)}
+
+
 # ── shader classes ───────────────────────────────────────────────────────────
 #
 #  Real particle materials come in TWO families, and they need different

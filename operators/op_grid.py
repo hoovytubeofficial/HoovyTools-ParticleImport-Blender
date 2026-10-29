@@ -18,10 +18,11 @@ TAG = "[HT_GRID]"
 
 
 class HTP_OT_HammerGrid(Operator):
-    """Paint Source's own floor grid, at 1 Blender Unit = 1 Hammer Unit
+    """Lay a simple floor grid, at 1 Blender Unit = 1 Hammer Unit
 
-The 1 / 8 / 16 / 64 grid Hammer and SFM are authored on, with a TF2 Scout
-height marker at 81.6924 units to check an effect against.
+Thin white lines and nothing between them, like SFM's own grid - a
+particle under it stays visible. 16 Hammer units a square by default, with
+an optional TF2 Scout height marker at 81.6924 units.
 
 FIX THE SCALE BEFORE ANYTHING ELSE. Internal particle space IS Hammer
 units - operator values are never multiplied by 0.01905 on the way in,
@@ -35,20 +36,23 @@ Build against the Scout and no number has to be guessed at."""
 
     extent: FloatProperty(
         name="Extent",
-        description="How far the grid reaches from the origin, in Hammer "
-                    "units. The lines are shader maths, so a bigger grid "
-                    "costs nothing",
-        default=256.0, min=16.0, max=16384.0, subtype="DISTANCE")
-    checker: BoolProperty(
-        name="16 HU Floor Tiles",
-        description="A barely-visible checker so the floor reads as a "
-                    "surface instead of a void",
-        default=True)
+        description="How far the grid reaches from the origin, in Hammer units",
+        default=128.0, min=16.0, max=4096.0, subtype="DISTANCE")
+    spacing: FloatProperty(
+        name="Square",
+        description="One square of the grid, in Hammer units (Hammer's own grid is 16).\n\n"
+                    "THIS FEATURE WAS ADDED IN VERSION 3.0.0 AND IS IN EXPERIMENTAL STAGE",
+        default=16.0, min=1.0, max=1024.0, subtype="DISTANCE")
+    line_width: FloatProperty(
+        name="Line Width",
+        description="How thick a line is, in Hammer units.\n\n"
+                    "THIS FEATURE WAS ADDED IN VERSION 3.0.0 AND IS IN EXPERIMENTAL STAGE",
+        default=0.35, min=0.01, max=16.0, subtype="DISTANCE")
     markers: BoolProperty(
         name="Scale Markers",
         description="An origin empty and a TF2 Scout height marker "
                     f"({hammer_grid.SCOUT_HEIGHT:.4g} units)",
-        default=True)
+        default=False)
     set_units: BoolProperty(
         name="Scene Units: None",
         description="Stop Blender labelling these units as metres. Without "
@@ -64,24 +68,20 @@ Build against the Scout and no number has to be guessed at."""
     def draw(self, context):
         col = self.layout.column()
         col.prop(self, "extent")
-        col.prop(self, "checker")
+        col.prop(self, "spacing")
+        col.prop(self, "line_width")
         col.prop(self, "markers")
         col.separator()
         col.prop(self, "set_units")
         col.prop(self, "hide_in_render")
-        box = self.layout.box()
-        box.scale_y = 0.8
-        box.label(text="1 Blender Unit = 1 Hammer Unit", icon="FIXED_SIZE")
-        box.label(text="Build systems against this with Scale = 1.0,")
-        box.label(text="not the 0.01905 metres default.")
 
     def invoke(self, context, event):
         return context.window_manager.invoke_props_dialog(self, width=340)
 
     def execute(self, context):
         try:
-            obj, info = hammer_grid.build(
-                extent=self.extent, checker=self.checker,
+            obj, info = hammer_grid.build_lines(
+                extent=self.extent, spacing=self.spacing, width=self.line_width,
                 markers=self.markers, set_units=self.set_units,
                 hide_in_render=self.hide_in_render)
         except Exception as exc:
@@ -92,8 +92,7 @@ Build against the Scout and no number has to be guessed at."""
         span = int(self.extent * 2)
         self.report(
             {"INFO"},
-            f"{span} x {span} HU grid · 1 / 8 / 16 / 64 HU · "
-            f"Scout at {hammer_grid.SCOUT_HEIGHT:.4g} HU"
+            f"{span} x {span} HU grid · {self.spacing:g} HU squares"
             + (" · scene units set to None" if info["units_set"] else ""))
         for o in context.selected_objects:
             o.select_set(False)
@@ -156,6 +155,41 @@ CAMERA_NAME = "HT · House Camera"
 CAMERA_LOCATION = (-131.0, -256.0, 68.0)
 CAMERA_ROTATION_DEG = (83.0, 0.0, -26.0)
 CAMERA_LENS = 50.0
+#  where the house camera aims (a Scout's middle) - frame_camera() keeps the same angle for any effect
+CAMERA_AIM = (0.0, 0.0, 40.0)
+
+
+def frame_camera(context, center, box):
+    """3.0.0: the house camera's angle, pulled back until the box fits the frame. `box` = (width, depth, up, down)
+    in Hammer units around `center` (the effect's control point). Returns the camera - made, or moved."""
+    import math
+    from mathutils import Vector
+    w, d, up, down = (float(v) for v in box)
+    h = up + down
+    target = Vector(center) + Vector((0.0, 0.0, (up - down) * 0.5))
+    radius = max(8.0, 0.5 * math.sqrt(w * w + d * d + h * h))
+    cam = bpy.data.objects.get(CAMERA_NAME)
+    if cam is None or cam.type != "CAMERA":
+        cam = bpy.data.objects.new(CAMERA_NAME, bpy.data.cameras.new(CAMERA_NAME))
+    if cam.name not in context.scene.collection.objects:
+        try:
+            context.scene.collection.objects.link(cam)
+        except Exception:
+            pass
+    r = context.scene.render
+    aspect = (r.resolution_y * r.pixel_aspect_y) / max(1.0, r.resolution_x * r.pixel_aspect_x)
+    cam.data.lens = CAMERA_LENS
+    half = math.atan((cam.data.sensor_width * 0.5 * min(1.0, aspect)) / cam.data.lens)
+    dist = radius / math.sin(half) * 1.08
+    direction = (Vector(CAMERA_LOCATION) - Vector(CAMERA_AIM)).normalized()
+    cam.location = target + direction * dist
+    cam.rotation_mode = "XYZ"
+    cam.rotation_euler = (target - cam.location).to_track_quat("-Z", "Y").to_euler()
+    cam.data.clip_start = max(0.1, dist / 2000.0)
+    cam.data.clip_end = max(10000.0, dist * 6.0)
+    context.scene.camera = cam
+    print(f"{TAG}  camera framed on a {w:.0f} x {d:.0f} x {h:.0f} HU effect, {dist:.0f} HU away")
+    return cam
 
 
 class HTP_OT_HouseCamera(Operator):

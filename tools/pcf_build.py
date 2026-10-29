@@ -89,9 +89,20 @@ def operator_counts(sysdef):
                 fn = str(op.get("functionName") or "").strip()
             except Exception:
                 continue
-            if fn:
+            if fn and _enabled(op):
                 counts[fn] = counts.get(fn, 0) + 1
     return counts
+
+
+def _enabled(op):
+    """0.24.1: `operator enabled 0` SWITCHES AN OPERATOR OFF in SFM. It was
+    listed as an attribute with no socket and the operator ran anyway - the
+    concrete impacts' disabled Rotation Yaw Flip Random mirrored their dust."""
+    try:
+        v = op.get("operator enabled")
+    except Exception:
+        return True
+    return v is None or bool(v)
 
 
 def operator_elements(sysdef):
@@ -104,7 +115,7 @@ def operator_elements(sysdef):
                 fn = str(op.get("functionName") or "").strip()
             except Exception:
                 continue
-            if fn:
+            if fn and _enabled(op):
                 out.setdefault(fn, []).append(op)
     return out
 
@@ -178,6 +189,7 @@ def plan(sysdef, hierarchy=None):
     enabled = []
     ignored = []
     cp_placements = {}
+    cp_frame = (0, False)       # (head CP the offsets are measured from, world space?)
 
     for fn, n in counts.items():
         # ── Set Control Point Positions ──────────────────────────────────
@@ -211,13 +223,27 @@ def plan(sysdef, hierarchy=None):
                     except (TypeError, ValueError):
                         ignored.append((fn, f"{word} Control Point Location",
                                         "could not read the vector"))
+            #  0.26.3: WHICH FRAME the offsets are in. Source transforms
+            #  them by the head control point's whole matrix, so they turn and
+            #  move with it - unless "Set positions in world space".
+            for elem in elements.get(fn, []):
+                try:
+                    head = elem.get("Control Point to offset positions from")
+                    world = elem.get("Set positions in world space")
+                    cp_frame = (int(head) if head is not None else 0,
+                                bool(world))
+                except (TypeError, ValueError):
+                    ignored.append((fn, "Control Point to offset positions "
+                                        "from", "could not read it"))
+                except Exception:
+                    continue
             notes.append("Set Control Point Positions: applied as the "
-                         "INITIAL placement of the control point empties "
-                         "(offsets from the effect origin). Not re-asserted "
-                         "per frame - the empties stay yours to animate.")
-            for extra in ("Control Point to offset positions from",
-                          "Set positions in world space",
-                          "Only set position once",
+                         "INITIAL placement of the control point empties, "
+                         "as offsets in the head control point's frame (CP0 "
+                         "unless the file names another) - they turn and "
+                         "move with it. Not re-asserted per frame - the "
+                         "empties stay yours to animate.")
+            for extra in ("Only set position once",
                           "First Control Point Parent",
                           "Second Control Point Parent",
                           "Third Control Point Parent",
@@ -268,6 +294,16 @@ def plan(sysdef, hierarchy=None):
                     ignored.append((fn, attr, why or "could not convert"))
                     continue
                 values[spec.socket_name(disp, sfm, inst, fn)] = val
+            # 0.24.2: WHAT THE FILE LEAVES OUT IS SOURCE'S DEFAULT, not the
+            # socket's (those are picked for hand-built systems). A .pcf only
+            # stores what differs from Source's default - a Radius Random
+            # written without radius_min means radius 1, not 8: the metal
+            # impacts' dust motes came out as big glowing balls.
+            stored = set(elem.keys())
+            for disp, sfm, _st, _d, _lo, _hi, _u in spec.fields_for(fn):
+                if sfm not in stored and (fn, sfm) in spec.SFM_DEFAULTS:
+                    values[spec.socket_name(disp, sfm, inst, fn)] = \
+                        spec.SFM_DEFAULTS[(fn, sfm)]
 
     # 🔴 AN OPERATOR THE FILE DOES NOT LIST MUST NOT RUN - ANY operator.
     # The builder gives every catalogue operator a panel, and panels that
@@ -285,6 +321,27 @@ def plan(sysdef, hierarchy=None):
         if counts.get(fn) or fspec["section"] == "RENDERER":
             continue
         values[spec.panel_name(fn)] = False
+
+    # 0.24.1: WHAT A PARTICLE IS BORN WITH WHEN NO INITIALIZER SETS IT.
+    # SFM uses the system's own `color` (white unless authored) and `radius`
+    # (5 unless authored). The importer used white and 8 - the concrete
+    # impacts' dust flipbook is authored grey (98) and came out white.
+    if not counts.get("Color Random"):
+        try:
+            c = sysdef.get("color")
+        except Exception:
+            c = None
+        if c is not None:
+            val, _why = convert(c, "byte", "NodeSocketColor")
+            if val is not None:
+                values[spec.socket_name("Color 1", "color1", 1, "Color Random")] = val
+    if not counts.get("Radius Random"):
+        try:
+            r = sysdef.get("radius")
+        except Exception:
+            r = None
+        values[spec.socket_name("Radius Min", "radius_min", 1, "Radius Random")] = (
+            float(r) if r is not None else 5.0)
 
     # SYSTEM PROPERTIES live on the definition itself, not on an operator.
     for attr, socket in (("max_particles", "Max Particles [SFM: max_particles]"),):
@@ -317,7 +374,7 @@ def plan(sysdef, hierarchy=None):
     return {"container": container,
             "renderer": renderer, "renderer_fn": rend_fn,
             "cp_count": cp_count, "cp_indices": cp["indices"],
-            "cp_placements": cp_placements,
+            "cp_placements": cp_placements, "cp_frame": cp_frame,
             "stack": stack, "values": values, "enabled": enabled,
             "ignored": ignored, "notes": notes, "material": material}
 

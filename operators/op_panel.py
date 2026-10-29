@@ -30,17 +30,38 @@ _HELP = {
         "A .pcf describes the system; .vtf sheets",
         "hold the artwork. Both are read directly -",
         "no VTFEdit, no external converters.")),
-    "DEV": ("Developer Tools", (
-        "The pipeline, in order:",
+    "TOOLS": ("Tools", (
+        "Every tool, numbered, in pipeline order.",
         "",
-        "1. Hammer Unit Grid   fix the scale first",
-        "2. Import VTF         see the texture",
-        "3. VTF + Sprite       prove the sheet cuts",
-        "4. Create a renderer  build the system",
-        "5. Node to Code       hand it to someone",
+        "The NAME is the button - press it to run",
+        "the tool. The arrow beside it unfolds its",
+        "variables: what the next press will use.",
         "",
-        "Hover any button - its tooltip is the",
-        "full documentation.")),
+        "The symbol at the right: green check after",
+        "a run that finished, yellow warning after",
+        "one that failed.")),
+    "DEV": ("Developer", (
+        "Wiring        is everything this add-on",
+        "              needs found, with the one",
+        "              button that fixes each row",
+        "Behavior      PRINT HELP writes ONE .txt",
+        "Report        to send when something goes",
+        "              wrong: what is wrong first,",
+        "              every failure with its .pcf",
+        "Logs          the log file and how errors",
+        "              are shown")),
+    "SIZE": ("Particle Size", (
+        "How big an effect is, read straight from",
+        "its .pcf - nothing is imported.",
+        "",
+        "Spawn area + the fastest particle's travel",
+        "over the longest life (with drag) + gravity",
+        "+ the largest card or trail, for every",
+        "system; children on parent particles start",
+        "from the parent's whole cloud.",
+        "",
+        "An upper bound: turbulence and attraction",
+        "only keep particles closer.")),
     "PROPS": ("System Properties", (
         "The modifier, re-hung in the sidebar.",
         "Click a built system's mesh and every",
@@ -78,6 +99,29 @@ _HELP = {
         "sheets in the script (bigger, runs",
         "anywhere); 'no textures' stays small",
         "and references images by name.")),
+    "PREVIEW": ("PCF Preview", (
+        "A preview card for the .pcf chosen in",
+        "the Import tab: the effect as SFM's",
+        "particle editor shows it, with its",
+        "titles, description and path.",
+        "",
+        "Main title    the name before the ( )",
+        "Second title  the first ( ) group",
+        "Path          the pack folder, and",
+        "              optionally the one below",
+        "Colours       the title in the effect's",
+        "              own hue, the path in the",
+        "              pack folder's colour",
+        "",
+        "Process Entire Folder: a card for every",
+        ".pcf below a folder that has none, then",
+        "an orb icon for each folder directly in",
+        "it (the .ico files go to the icon folder).",
+        "",
+        "Saved beside the .pcf as",
+        "<name> (preview).png - never over an",
+        "existing card. The folder button opens",
+        "the Text Editor version of the tool.")),
     "IMPORTS": ("Imports", (
         "Texture on the LEFT, material on the",
         "RIGHT - the same job with and without",
@@ -184,12 +228,60 @@ class HTP_OT_SectionHelp(bpy.types.Operator):
         return {"FINISHED"}
 
 
+#  3.0.0: what each tool's status slot shows - "ok" after a run that finished, "warn" after one that failed.
+#  Filled by operators/__init__.py's guard around every operator's execute; draw() only reads it.
+RUNS = {}
+
+
+def tool_variables(props):
+    """The variables a tool's ribbon unfolds. wm.operator_properties_last() is EXACTLY what the next press of
+    the button uses, so editing them here edits what happens - minus what Blender does not carry from one press
+    to the next (hidden and skip-save properties) and what a panel cannot draw (pointers, collections)."""
+    out = []
+    if props is None:
+        return out
+    for prop in props.bl_rna.properties:
+        if prop.identifier == "rna_type" or prop.is_hidden or prop.is_skip_save:
+            continue
+        if prop.type in ("POINTER", "COLLECTION"):
+            continue
+        out.append(prop.identifier)
+    return out
+
+
+FOLDS = ("sec_tools_create", "sec_tools_imports", "sec_tools_scale", "sec_tools_preview", "sec_tools_size",
+         "sec_tools_share", "sec_tools_performance", "sec_dev_wiring", "sec_dev_behavior", "sec_dev_logs",
+         "sec_dev_credits", "sec_dev_configure")
+TOOL_FOLDS = ("create_ras", "create_rope", "create_trail", "import_vtf", "import_vtf_sprite", "import_vmt",
+              "import_vmt_sprite", "hammer_grid", "house_camera", "create_pcf_preview", "process_pcf_folder",
+              "calculate_particle_size")
+pi.HTP_Props.__annotations__.update({
+    key: bpy.props.BoolProperty(name="Open", description="Fold or unfold", default=False)
+    for key in FOLDS + tuple("tool_" + t for t in TOOL_FOLDS)
+})
+
+
+def fold(layout, p, key, title, icon_kw):
+    """A boxed section that folds, like SFM Session Importer's. (body or None when shut, the header row)."""
+    box = layout.box()
+    head = box.row(align=True)
+    head.use_property_split = False
+    is_open = bool(getattr(p, key, False))
+    head.prop(p, key, text="", emboss=False, icon="DOWNARROW_HLT" if is_open else "RIGHTARROW")
+    head.label(text=title, **icon_kw)
+    return (box if is_open else None), head
+
+
 class HTP_PT_Main(Panel):
-    bl_label = "HoovyTools Particle Import"
+    bl_label = "Source Particle Import"
     bl_idname = "HTP_PT_main"
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
-    bl_category = "Particle Import"
+    bl_category = "HoovyTools"
+    bl_order = 1
+
+    def draw_header(self, context):
+        self.layout.label(text="", **icon_id("particle_import", "PARTICLES"))
 
     def draw(self, context):
         layout = self.layout
@@ -197,137 +289,129 @@ class HTP_PT_Main(Panel):
         if p is None:
             layout.label(text="Add-on properties not registered", icon="ERROR")
             return
-        row = layout.row(align=True)
-        row.scale_y = 1.3
+        bar = layout.row()
+        bar.scale_y = 1.3
+        row = bar.row(align=True)
         row.prop_enum(p, "active_tab", "IMPORT", text="Import")
-        row.prop_enum(p, "active_tab", "PROPS", text="Properties")
-        dev = row.row(align=True)
-        dev.ui_units_x = 1.8
+        row.prop_enum(p, "active_tab", "PROPS", text="Props")
+        small = row.row(align=True)
+        small.ui_units_x = 1.6
+        small.prop_enum(p, "active_tab", "TOOLS", text="")
+        bar.separator(factor=1.0)
+        dev = bar.row(align=True)
+        dev.ui_units_x = 1.6
         dev.prop_enum(p, "active_tab", "DEV", text="")
-        #  The (?) explains whichever tab is open - the Guide tab's job,
-        #  delivered in place.
-        row.operator("htp.section_help", text="",
-                     icon="QUESTION").topic = p.active_tab or "IMPORT"
         layout.separator()
-        #  .get with a fallback: a file saved on the removed Guide tab reads
-        #  back an empty enum value, and a KeyError at draw time would blank
-        #  the whole panel.
+        #  .get with a fallback: a file saved on a removed tab reads back an empty enum value, and a KeyError
+        #  at draw time would blank the whole panel.
         {"IMPORT": self._import,
-         "DEV": self._developer,
+         "TOOLS": self._tools,
+         "DEV": self._dev,
          "PROPS": self._properties}.get(
             p.active_tab, self._import)(layout, context, p)
 
-    #  A section header with its own (?) - the label takes the flexible
-    #  width, so the help lands at the row's right edge. emboss=False keeps
-    #  it a quiet glyph instead of another button-shaped button.
-    @staticmethod
-    def _head(box, text, topic, **icon):
-        row = box.row()
-        row.label(text=text, **icon)
-        row.operator("htp.section_help", text="", icon="QUESTION",
-                     emboss=False).topic = topic
 
     # ── Import ───────────────────────────────────────────────────────────
     def _import(self, layout, context, p):
-        # Playhead now lives ON the Start Time field, inside draw_import_ui.
-        #  ONE Build button, and it is drawn inside draw_import_ui. A second
-        #  full-width "Build This System" used to sit here, wired to the old
-        #  place-an-anchor operator - a duplicate control that crashed while
-        #  the real one worked.
+        #  ONE Build button, drawn inside draw_import_ui.
         pi.draw_import_ui(layout, context, compact=True)
 
-    def _developer(self, layout, context, p):
-        box = layout.box()
-        self._head(box, "CREATE RENDERER SYSTEM", "CREATE",
-                   **icon_id("render_animated_sprites", "PARTICLES"))
-        col = box.column(align=True)
-        col.scale_y = 1.4
-        col.operator("htp.create_ras", text="Render Animated Sprites",
-                     **icon_id("render_animated_sprites", "PARTICLES"))
-        col.operator("htp.create_rope", text="Render Rope",
-                     icon="OUTLINER_OB_CURVE")
-        col.operator("htp.create_trail", text="Render Sprite Trail",
-                     icon="TRACKING")
+    _TOOLS = (
+        ("CREATE", "Create Renderer System", "render_animated_sprites", "PARTICLES", (
+            ("1.1", "Animated Sprites", "htp.create_ras", "render_animated_sprites", "PARTICLES"),
+            ("1.2", "Rope", "htp.create_rope", "render_rope", "OUTLINER_OB_CURVE"),
+            ("1.3", "Sprite Trail", "htp.create_trail", "render_trail", "TRACKING"))),
+        ("IMPORTS", "Imports", "vtf_import", "IMPORT", (
+            ("2.1", "Import VTF", "htp.import_vtf", "vtf_import", "IMPORT"),
+            ("2.2", "VTF + Sprite", "htp.import_vtf_sprite", "vtf_sprite", "SEQUENCE"),
+            ("2.3", "Import VMT", "htp.import_vmt", "vmt_import", "MATERIAL"),
+            ("2.4", "VMT + Sprite", "htp.import_vmt_sprite", "vmt_sprite", "SHADING_TEXTURE"))),
+        ("SCALE", "Set Scale", "hammer_grid", "FIXED_SIZE", (
+            ("3.1", "Hammer Unit Grid", "htp.hammer_grid", "hammer_grid", "GRID"),
+            ("3.2", "Create Camera", "htp.house_camera", "house_camera", "OUTLINER_OB_CAMERA"))),
+        ("PREVIEW", "PCF Preview", "pcf_preview", "IMAGE_DATA", (
+            ("4.1", "Create PCF Preview", "htp.create_pcf_preview", "pcf_preview", "IMAGE_DATA"),
+            ("4.2", "Whole Folder", "htp.process_pcf_folder", "process_folder", "FOLDER_REDIRECT"))),
+        ("SIZE", "Particle Size", "particle_size", "FULLSCREEN_ENTER", (
+            ("5.1", "Calculate Size", "htp.calculate_particle_size", "particle_size",
+             "FULLSCREEN_ENTER"),)),
+        ("SHARE", "Share What You Made", "node_to_code", "NODETREE", (
+            ("6.1", "Geo Nodes + Textures", "htp.ntc_geo_tex", "node_to_code", "TEXT"),
+            ("6.2", "Geo Nodes", "htp.ntc_geo_notex", "node_to_code", "NODETREE"),
+            ("6.3", "Shader + Textures", "htp.ntc_mat_tex", "vmt_import", "MATERIAL"),
+            ("6.4", "Shader Nodes", "htp.ntc_mat_notex", "vmt_import", "NODE_MATERIAL"))),
+        ("PERFORMANCE", "Performance", "proxy_view", "MOD_DECIM", (
+            ("7.1", "Proxy View", "htp.proxy_view", "proxy_view", "MESH_PLANE"),)),
+    )
 
-        box = layout.box()
-        self._head(box, "SHARE WHAT YOU MADE", "SHARE",
-                   **icon_id("node_to_code", "NODETREE"))
-        #  FOUR flavours, each doing exactly one thing - geometry vs shader,
-        #  textures embedded vs referenced. No options to misread.
-        col = box.column(align=True)
-        col.scale_y = 1.2
-        col.label(text="Geometry Nodes (select the effect's object):")
-        col.operator("htp.ntc_geo_tex", text="Geo Nodes (with textures)",
-                     **icon_id("node_to_code", "TEXT"))
-        col.operator("htp.ntc_geo_notex", text="Geo Nodes (no textures)",
-                     icon="NODETREE")
-        col.separator()
-        col.label(text="Shader Nodes (select an object wearing it):")
-        col.operator("htp.ntc_mat_tex", text="Shader Nodes (with textures)",
-                     icon="MATERIAL")
-        col.operator("htp.ntc_mat_notex", text="Shader Nodes (no textures)",
-                     icon="NODE_MATERIAL")
+    @staticmethod
+    def _extra(idname, dev=False):
+        """What a ribbon shows under its variables, besides them. The Text Editor Tool folders only in Developer
+        Mode, like SFM Session Importer's."""
+        if idname == "htp.create_pcf_preview":
+            if not dev:
+                return None
+            return lambda body: body.operator("htp.open_preview_tool", text="Text Editor Tool",
+                                              icon="FILE_FOLDER")
+        if idname == "htp.calculate_particle_size":
+            def size_extra(body):
+                from . import op_size
+                op_size.draw_last(body)
+                if dev:
+                    body.operator("htp.open_size_tool", text="Text Editor Tool", icon="FILE_FOLDER")
+            return size_extra
+        return None
 
-        #  TEXTURE ON THE LEFT, MATERIAL ON THE RIGHT. The .vmt parser has
-        #  been doing real work inside .pcf imports for a while with no way to
-        #  watch it - these two columns are the same job with and without the
-        #  material step, which makes the difference something you can see
-        #  rather than something you have to be told.
+    @staticmethod
+    def ribbon(layout, context, number, title, idname, icon_key, fallback, extra=None):
+        try:
+            props = context.window_manager.operator_properties_last(idname)
+        except Exception:
+            props = None
+        names = tool_variables(props)
+        p = pi.props(context)
+        key = "tool_" + idname.split(".")[-1]
         box = layout.box()
-        self._head(box, "IMPORTS", "IMPORTS", **icon_id("vtf_import", "IMPORT"))
-        split = box.split(factor=0.5, align=True)
-        left = split.column(align=True)
-        left.scale_y = 1.2
-        left.operator("htp.import_vtf", text="VTF",
-                      **icon_id("vtf_import", "IMPORT"))
-        left.operator("htp.import_vtf_sprite", text="VTF + Sprite",
-                      **icon_id("vtf_sprite", "SEQUENCE"))
-        right = split.column(align=True)
-        right.scale_y = 1.2
-        right.operator("htp.import_vmt", text="VMT",
-                       **icon_id("vmt_import", "MATERIAL"))
-        right.operator("htp.import_vmt_sprite", text="VMT + Sprite",
-                       **icon_id("vmt_sprite", "SHADING_TEXTURE"))
-
-        box = layout.box()
-        self._head(box, "SET SCALE", "SCALE",
-                   **icon_id("hammer_grid", "FIXED_SIZE"))
-        col = box.column(align=True)
-        col.scale_y = 1.2
-        col.operator("htp.hammer_grid", text="Hammer Unit Grid",
-                     **icon_id("hammer_grid", "GRID"))
-        #  No "Remove Grid" button - deleting the grid object by hand is
-        #  faster than finding a button for it, and the panel gets a row back.
-        col.separator()
-        col.operator("htp.house_camera", text="Create Camera",
-                     icon="OUTLINER_OB_CAMERA")
-
-        box = layout.box()
-        self._head(box, "PERFORMANCE", "PERFORMANCE", icon="MOD_DECIM")
-        col = box.column(align=True)
-        col.scale_y = 1.2
-        col.operator("htp.proxy_view", text="Proxy View (Low GPU)",
-                     icon="MESH_PLANE")
-
-        #  SUPPORT lives at the BOTTOM on purpose: it is the last resort, and
-        #  the last thing the eye passes on the way out of the panel.
-        box = layout.box()
-        self._head(box, "SUPPORT", "SUPPORT", icon="HELP")
-        col = box.column(align=True)
-        col.scale_y = 1.2
-        col.operator("htp.copy_support", text="Copy Console Output",
-                     icon="COPYDOWN")
-
-        usermod = op_prefs.find_usermod()
-        row = layout.row()
-        if usermod is None:
-            row.label(text="SFM install not found", icon="ERROR")
+        hdr = box.row(align=True)
+        hdr.use_property_split = False
+        body = None
+        if (names or extra is not None) and p is not None and hasattr(p, key):
+            is_open = bool(getattr(p, key))
+            hdr.prop(p, key, text="", emboss=False, icon="DOWNARROW_HLT" if is_open else "RIGHTARROW")
+            body = box if is_open else None
         else:
-            row.label(text="SFM found", icon="CHECKMARK")
-        #  The gear opens this add-on's preferences - where the preferred
-        #  paths live, including the fix for "not found" above.
-        row.operator("htp.open_prefs", text="", icon="PREFERENCES",
-                     emboss=False)
+            hdr.label(text="", icon="BLANK1")
+        hdr.operator(idname, text=f"{number} · {title}", **icon_id(icon_key, fallback))
+        state = RUNS.get(idname)
+        if state == "warn":
+            hdr.label(text="", **icon_id("status_warn", "ERROR"))
+        elif state == "ok":
+            hdr.label(text="", **icon_id("status_ok", "CHECKMARK"))
+        else:
+            hdr.label(text="", icon="BLANK1")
+        if body is None:
+            return
+        col = body.column()
+        col.use_property_split = True
+        col.use_property_decorate = False
+        for name in names:
+            col.prop(props, name)
+        if extra is not None:
+            extra(body)
+
+    def _tools(self, layout, context, p):
+        for key, title, icon_key, fallback, tools in self._TOOLS:
+            body, _head = fold(layout, p, "sec_tools_" + key.lower(), title, icon_id(icon_key, fallback))
+            if body is None:
+                continue
+            col = body.column(align=True)
+            dev = bool(getattr(p, "developer_mode", False))
+            for number, label, idname, ikey, ifallback in tools:
+                self.ribbon(col, context, number, label, idname, ikey, ifallback, self._extra(idname, dev))
+
+    def _dev(self, layout, context, p):
+        from . import op_dev
+        op_dev.draw_dev(layout, context)
 
     # ── Properties ───────────────────────────────────────────────────────
     #
@@ -441,8 +525,6 @@ class HTP_PT_Main(Panel):
         hdr, body = layout.panel(gen + "sys", default_closed=minimized)
         hdr.label(text="System Properties",
                   **icon_id("sys_properties", "PROPERTIES"))
-        hdr.operator("htp.section_help", text="", icon="QUESTION",
-                     emboss=False).topic = "SYSTEM PROPERTIES"
         if body is not None:
             col = body.box().column()
             for it in top_sockets.get("SYSTEM PROPERTIES", []):
@@ -450,8 +532,6 @@ class HTP_PT_Main(Panel):
         hdr, body = layout.panel(gen + "cp", default_closed=True)
         hdr.label(text="Control Points",
                   **icon_id("sys_properties_non_sfm", "EMPTY_AXIS"))
-        hdr.operator("htp.section_help", text="", icon="QUESTION",
-                     emboss=False).topic = "CONTROL POINTS"
         if body is not None:
             col = body.box().column()
             for it in top_sockets.get("CONTROL POINTS", []):
@@ -481,8 +561,6 @@ class HTP_PT_Main(Panel):
             lab = hrow.row()
             lab.enabled = bool(shown)
             lab.label(text=section.title(), **icon_id(icon_key, "NODETREE"))
-            hrow.operator("htp.section_help", text="", icon="QUESTION",
-                          emboss=False).topic = section
             #  the ADD button stays live even when the section is empty -
             #  an empty section is exactly where you want to add something
             add = hrow.operator("htp.props_add_operator", text="",

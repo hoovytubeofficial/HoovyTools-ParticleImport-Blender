@@ -20,10 +20,16 @@ TAG = "[HT_SUPPORT]"
 
 
 def _addon_version():
+    #  ASK FOR OURSELVES BY __package__, NEVER BY A WRITTEN-DOWN NAME.
+    #  This add-on has shipped under three folder names and the current one
+    #  has hyphens in it, which `import X` cannot spell at all. __package__
+    #  here is "<the add-on>.operators", so the first segment is the add-on
+    #  - and it is right whatever the folder is called.
     try:
-        import HoovyToolsParticleImport
-        return ".".join(str(v) for v in
-                        HoovyToolsParticleImport.bl_info["version"])
+        import sys
+        root = (__package__ or "").split(".")[0]
+        mod = sys.modules.get(root)
+        return ".".join(str(v) for v in mod.bl_info["version"])
     except Exception:
         return "?"
 
@@ -32,8 +38,8 @@ def _scene_analysis(context):
     """The facts a troubleshooter asks for first, gathered in one place."""
     scn = context.scene
     out = []
-    out.append("=== HoovyTools support report ===")
-    out.append(f"addon    : HoovyTools Particle Import {_addon_version()}")
+    out.append("=== Source Particle Import support report ===")
+    out.append(f"addon    : Source Particle Import {_addon_version()}")
     out.append(f"blender  : {bpy.app.version_string}")
     out.append(f"os       : {platform.platform()}")
     out.append(f"engine   : {scn.render.engine}   "
@@ -55,9 +61,10 @@ def _scene_analysis(context):
                f"{dropped} attribute(s) not translated")
 
     log = htlog.lines()
+
     def count(needle):
         return sum(1 for l in log if needle in l)
-    out.append(f"log      : {len(log)} HoovyTools line(s) captured - "
+    out.append(f"log      : {len(log)} console line(s) captured - "
                f"{count('SKIPPED')} skip(s), {count('FALLBACK')} fallback(s), "
                f"{count('no .vmt found')} missing .vmt, "
                f"{count('not on disk')} missing .vtf, "
@@ -84,12 +91,12 @@ clipboard misbehaves."""
     def execute(self, context):
         head = _scene_analysis(context)
         log = htlog.lines()
-        body = ["", "=== console output (HoovyTools lines only) ==="]
+        body = ["", "=== console output (Source Particle Import lines only) ==="]
         body += log if log else ["(nothing captured yet - import something "
                                  "first, then press this again)"]
         text = "\n".join(head + body)
 
-        name = "HoovyTools support report"
+        name = "Source Particle Import support report"
         tb = bpy.data.texts.get(name) or bpy.data.texts.new(name)
         tb.clear()
         tb.write(text)
@@ -112,11 +119,4 @@ clipboard misbehaves."""
 
 
 CLASSES = (HTP_OT_CopySupport,)
-
-
-def register():
-    htlog.start()
-
-
-def unregister():
-    htlog.stop()
+#  3.0.0: the console mark and the capture start in the add-on's own register(), before anything else prints.

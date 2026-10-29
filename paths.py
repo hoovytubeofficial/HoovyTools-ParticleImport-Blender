@@ -115,6 +115,19 @@ def _candidate_steam_roots():
     return unique
 
 
+def _true_case(path):
+    """The path as the disk spells it. Steam's registry keeps its folder in lower case ("c:/program files
+    (x86)/steam"), and the preferences and Wiring showed it that way (3.0.0). Junctions are not followed."""
+    try:
+        cur = Path(path.drive.upper() + "\\")
+        for name in path.parts[1:]:
+            low = name.lower()
+            cur = cur / next((e for e in os.listdir(cur) if e.lower() == low), name)
+        return cur
+    except Exception:
+        return path
+
+
 # ── public API ───────────────────────────────────────────────────────────────
 
 def find_usermod(override=None, force=False):
@@ -131,7 +144,7 @@ def find_usermod(override=None, force=False):
         usermod = root / _REL_SFM / _REL_USERMOD
         try:
             if usermod.is_dir():
-                found = usermod
+                found = _true_case(usermod)
                 break
         except Exception:
             continue

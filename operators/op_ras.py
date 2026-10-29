@@ -267,8 +267,13 @@ def build_ras(context, path, values=None,
               cp_count=ras_system.DEFAULT_CONTROL_POINTS,
               parent=None, key_cps=False, host_name=None, overbright=1.0,
               additive=False, warp=None, span_sequences=False, root=None,
-              cps=None, collection=None):
+              cps=None, collection=None, blend=None, draws=None):
     """Decode a .vtf and stand up the whole system. Returns (host, info).
+
+    draws     how many times SFM draws this system's cards (0.24.2, measured):
+              2 when another sprite system in the same effect shares the
+              material - the .pcf importer counts that - else 1. A trail is
+              always drawn once.
 
     cp_count  how many control points to build. Four unless told otherwise;
               a .pcf import passes the number read out of the file.
@@ -366,12 +371,22 @@ def build_ras(context, path, values=None,
                 f"RAS Warp · {stem} · a{warp['refract_amount']:g}",
                 img, cols, rows, uv_group, **warp)
         else:
+            # 0.24.0: the material is keyed by its whole BLEND (mode, overbright,
+            # addself), so two systems sharing a .vtf at different settings
+            # never share a material. A bare .vtf with no .vmt hands over no
+            # blend and keeps what the old switches meant.
+            bl = blend or sprite_nodes.legacy_blend(overbright, additive)
+            # 0.24.2: HOW MANY TIMES SFM DRAWS IT, measured - a trail once, a
+            # sprite twice only when another sprite system in the same effect
+            # shares its material. Part of the name, like the blend: the same
+            # .vtf drawn once and twice is two materials.
+            n_draws = 1 if (renderer or "").upper() == "SPRITE_TRAIL" \
+                else max(1, int(draws or 1))
             mat = sprite_nodes.build_sprite_material(
-                f"RAS Sprite · {stem}"
-                + (f" · x{overbright:g}" if abs(overbright - 1.0) > 1e-6 else "")
-                + (" · additive" if additive else ""),
-                img, cols, rows, uv_group, overbright=overbright,
-                additive=additive, rect_attrs=bool(rects))
+                f"RAS Sprite · {stem}" + sprite_nodes.blend_tag(bl)
+                + sprite_nodes.draws_tag(n_draws),
+                img, cols, rows, uv_group, overbright=bl["overbright"],
+                rect_attrs=bool(rects), blend=bl, draws=n_draws)
 
     vp = op_prefs.viewport_facing()
     eye = _once("eye·viewport" if vp else "eye",
@@ -829,6 +844,7 @@ it builds a neutral material and says so in the console."""
                                    key_cps=self.key_control_points,
                                    overbright=src["overbright"],
                                    additive=src["additive"],
+                                   blend=src.get("blend"),
                                    warp=src.get("warp"),
                                    span_sequences=True)
         except Exception as exc:

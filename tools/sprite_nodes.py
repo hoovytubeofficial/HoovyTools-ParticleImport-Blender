@@ -76,6 +76,28 @@ def _group(name, kind):
     return ng
 
 
+def _shared_group(name, kind, sig):
+    """A group SEVERAL MATERIALS wire into - the sheet lookup, one per texture.
+    -> (group, needs_building).
+
+    🔴 0.26.3: _group REBUILDS IN PLACE, and clearing an interface silently cuts
+    every link and value the group's users had. Two systems drawing one .vtf at
+    two brightnesses are two materials on ONE sheet group: building the second
+    cleared it, and the first material was left with Frame / Columns / Rows at 0
+    and its texture on the card's raw UVs - the WHOLE SHEET on every sprite. Same sheet -> the group as it
+    was built; a different sheet under the same name -> a new group beside it
+    (Blender adds .001), so nothing already wired to the old one changes."""
+    ng = bpy.data.node_groups.get(name)
+    if ng is not None and ng.get("htp_sig") == sig and len(ng.nodes):
+        return ng, False
+    if ng is not None and ng.users:
+        ng = bpy.data.node_groups.new(name, kind)
+    else:
+        ng = _group(name, kind)
+    ng["htp_sig"] = sig
+    return ng, True
+
+
 def set_structure(s):
     """Pin an interface socket's structure type instead of leaving it AUTO.
 
@@ -255,7 +277,10 @@ def build_sheet_uv_group(name, cols, rows, width=0, height=0):
     the next spark. Source's own sheet rects are inset half a texel for
     exactly this reason. 0 means size unknown - no inset, which is what the
     old Closest-filtered graphs effectively had."""
-    ng = _group(name, "ShaderNodeTree")
+    ng, fresh = _shared_group(name, "ShaderNodeTree",
+                              f"grid {cols}x{rows} {width}x{height}")
+    if not fresh:
+        return ng
     _sock(ng, "Vector", "OUTPUT", "NodeSocketVector")
     _sock(ng, "Frame", "INPUT", "NodeSocketFloat", 0.0)
     _sock(ng, "Columns", "INPUT", "NodeSocketFloat", float(cols))
@@ -421,7 +446,9 @@ def build_rect_uv_group(name, rects=None, width=0, height=0):
     Named under the "RAS Sheet UV" family ON PURPOSE: the hand shader layout
     identifies group nodes by that name prefix, so the material's Sheet
     Processing frame adopts this group exactly like the grid one."""
-    ng = _group(name, "ShaderNodeTree")
+    ng, fresh = _shared_group(name, "ShaderNodeTree", "rects")
+    if not fresh:
+        return ng
     _sock(ng, "Vector", "OUTPUT", "NodeSocketVector")
     _sock(ng, "Corner", "INPUT", "NodeSocketVector")
     _sock(ng, "Size", "INPUT", "NodeSocketVector")
@@ -480,8 +507,176 @@ def build_invisible_material(name):
     return mat
 
 
+EDITOR_DRAWS = 2
+#  ↑ THE SECOND DRAW, AND WHEN IT HAPPENS - measured twice:
+#  0.24.0: calibration kit 1's one-particle tiles fit only as two layers - but
+#  every material in kit 1 was used by two systems (a single and a double).
+#  0.24.2: kit 3 gave each tile its OWN material and they fit as ONE layer
+#  (2.5-4.4 grey levels; two layers were 20-26 off), except the two tiles that
+#  shared one material: two layers again (2.6). Trails were drawn once even
+#  when three of them shared a material. So: a sprite system whose material
+#  another sprite system in the same effect also uses is drawn TWICE, every
+#  other system ONCE. The .pcf importer counts that per effect and hands each
+#  material its Draws; this is the value for the shared case.
+
+
+def draws_tag(draws):
+    """The material-name suffix for the draw count (0.24.2): the same .vmt
+    drawn once by one system and twice by another is two materials."""
+    n = int(draws)
+    return f" · {n} draw" + ("" if n == 1 else "s")
+
+
+SHADING_NOTE = """
+SFM's SpriteCard, MEASURED (calibration kit, 2026-10-28, 1-3 grey levels).
+All in LINEAR light - texture sRGB in, Standard view out; the particle
+colour is sRGB too, hence the gamma 2.2 on it.
+
+    s = texture x particle colour      a = texture alpha x particle alpha
+    blend         S = min(1, obf s) a           T = 1 - a
+    $additive     S = min(1, obf s) a           T = 1
+    $addoverblend S = min(1, obf s)             T = 1 - a
+    $addself k    S = min(1, obf (1+k) s a)     T = 1 - a
+    frame = S + T x frame        (Emission S  +  Transparent T)
+
+DRAWS. SFM draws a sprite system TWICE when another sprite system in the
+same effect uses the same material, and ONCE otherwise; trails always once
+(measured, calibration kits 1 and 3). Two draws make each card two layers:
+    S x (1 + T),   T x T.
+The importer sets Draws per material; change it here to override.
+
+Clamp: the colour is clamped to 1 BEFORE blending (an overbright-2 tile's
+0.75 and 0.97 greys came out the same).
+"""
+
+
+def legacy_blend(overbright=1.0, additive=False):
+    """What the old two switches meant, for callers that only have those
+    (a bare .vtf picked by hand: no .vmt, so no flags to read)."""
+    return {"mode": "additive" if additive else "blend", "addself": 0.0,
+            "overbright": float(overbright)}
+
+
+def blend_tag(bl):
+    """The material-name suffix: different blends are different materials."""
+    tag = " · " + bl["mode"]
+    if abs(float(bl["overbright"]) - 1.0) > 1e-6:
+        tag += f" · x{float(bl['overbright']):g}"
+    if bl["mode"] == "addself":
+        tag += f" · self{float(bl['addself']):g}"
+    return tag
+
+
+def spritecard_output(nt, rgb, alpha, tint, palpha, blend, x=-140, y=120,
+                      n_draws=None):
+    """SFM's SpriteCard blend, measured (see SHADING_NOTE). Builds the nodes
+    from the sampled texture to the Material Output and returns them.
+
+    rgb, alpha     the sheet's colour (linear - an sRGB image) and alpha
+    tint, palpha   the particle's colour (sRGB 0..1) and alpha (0..1)
+
+    ONE SHADER FOR EVERY FLAG: Add( Transparent BSDF tinted T, Emission S ).
+    The frame behind is multiplied by T and S is added on top, which is
+    exactly `frame = S + T x frame` - the form all four SpriteCard blends
+    reduce to. (The old mix-by-opacity could only do the plain blend; it drew
+    additive sprites OVER the frame and darkened their mid-tones.)"""
+    links = nt.links
+    mode = blend.get("mode", "blend")
+    obf = max(0.0, float(blend.get("overbright", 1.0)))
+    k = float(blend.get("addself", 0.0))
+    made = []
+
+    def node(idname, loc, label, **props):
+        n = _nd(nt, idname, (x + loc[0], y + loc[1]), label, role="RENDERER",
+                **props)
+        made.append(n)
+        return n
+
+    lin = node("ShaderNodeGamma", (0, 0), "particle colour -> linear (2.2)")
+    links.new(tint, lin.inputs[0])
+    lin.inputs[1].default_value = 2.2
+    s = node("ShaderNodeVectorMath", (180, 0), "s = texture x colour",
+             operation="MULTIPLY")
+    links.new(rgb, s.inputs[0])
+    links.new(lin.outputs[0], s.inputs[1])
+    a = node("ShaderNodeMath", (180, -240), "a = texture x particle alpha",
+             operation="MULTIPLY")
+    links.new(alpha, a.inputs[0])
+    links.new(palpha, a.inputs[1])
+
+    gain = obf * (1.0 + k) if mode == "addself" else obf
+    pre = node("ShaderNodeVectorMath", (360, 0),
+               f"x {gain:g}  (overbright{' x (1+addself)' if mode == 'addself' else ''})",
+               operation="SCALE")
+    links.new(s.outputs[0], pre.inputs[0])
+    pre.inputs[3].default_value = gain
+    src = pre.outputs[0]
+    if mode == "addself":
+        pa = node("ShaderNodeVectorMath", (540, 0), "x a  (addself: alpha first)",
+                  operation="SCALE")
+        links.new(src, pa.inputs[0])
+        links.new(a.outputs[0], pa.inputs[3])
+        src = pa.outputs[0]
+    clamp = node("ShaderNodeMix", (720, 0), "clamped to 1 BEFORE blending",
+                 data_type="RGBA", clamp_result=True)
+    clamp.inputs[0].default_value = 0.0
+    links.new(src, clamp.inputs[6])
+    S = clamp.outputs[2]
+    if mode in ("blend", "additive"):
+        sa = node("ShaderNodeVectorMath", (900, 0), "x a", operation="SCALE")
+        links.new(S, sa.inputs[0])
+        links.new(a.outputs[0], sa.inputs[3])
+        S = sa.outputs[0]
+
+    draws = node("ShaderNodeValue", (540, -420),
+                 "Draws (2 = material shared with another system, 1 = once)")
+    draws.outputs[0].default_value = float(EDITOR_DRAWS if n_draws is None
+                                           else n_draws)
+    if mode == "additive":
+        sn = node("ShaderNodeVectorMath", (1080, 0), "x Draws  (additive: T = 1)",
+                  operation="SCALE")
+        links.new(S, sn.inputs[0])
+        links.new(draws.outputs[0], sn.inputs[3])
+        S_out, T_out = sn.outputs[0], None
+    else:
+        tt = node("ShaderNodeMath", (360, -240), "T = 1 - a", operation="SUBTRACT")
+        tt.inputs[0].default_value = 1.0
+        links.new(a.outputs[0], tt.inputs[1])
+        dm1 = node("ShaderNodeMath", (720, -420), "Draws - 1", operation="SUBTRACT")
+        links.new(draws.outputs[0], dm1.inputs[0])
+        dm1.inputs[1].default_value = 1.0
+        f = node("ShaderNodeMath", (900, -300), "(Draws - 1) T", operation="MULTIPLY")
+        links.new(dm1.outputs[0], f.inputs[0])
+        links.new(tt.outputs[0], f.inputs[1])
+        f1 = node("ShaderNodeMath", (1080, -300), "1 + (Draws - 1) T", operation="ADD")
+        links.new(f.outputs[0], f1.inputs[0])
+        f1.inputs[1].default_value = 1.0
+        sn = node("ShaderNodeVectorMath", (1260, 0), "S x (1 + (Draws-1) T)",
+                  operation="SCALE")
+        links.new(S, sn.inputs[0])
+        links.new(f1.outputs[0], sn.inputs[3])
+        tn = node("ShaderNodeMath", (1080, -480), "T ^ Draws", operation="POWER")
+        links.new(tt.outputs[0], tn.inputs[0])
+        links.new(draws.outputs[0], tn.inputs[1])
+        S_out, T_out = sn.outputs[0], tn.outputs[0]
+
+    transp = node("ShaderNodeBsdfTransparent", (1440, -220), "the frame x T")
+    if T_out is not None:
+        links.new(T_out, transp.inputs[0])
+    emis = node("ShaderNodeEmission", (1440, 0), "+ S")
+    links.new(S_out, emis.inputs[0])
+    emis.inputs[1].default_value = 1.0
+    add = node("ShaderNodeAddShader", (1620, -80), "frame = S + T x frame")
+    links.new(transp.outputs[0], add.inputs[0])
+    links.new(emis.outputs[0], add.inputs[1])
+    out = node("ShaderNodeOutputMaterial", (1800, -80), "out")
+    links.new(add.outputs[0], out.inputs[0])
+    return made
+
+
 def build_sprite_material(name, image, cols, rows, uv_group, overbright=1.0,
-                          additive=False, rect_attrs=False):
+                          additive=False, rect_attrs=False, blend=None,
+                          draws=None):
     """rect_attrs: the uv_group is the per-frame-RECT variant - feed it the
     geometry-stored sprite_rect_* attributes instead of Frame/Columns/Rows."""
     mat = bpy.data.materials.get(name) or bpy.data.materials.new(name)
@@ -603,78 +798,13 @@ def build_sprite_material(name, image, cols, rows, uv_group, overbright=1.0,
     _lk(nt, tex, 1, falpha, 2)
     _lk(nt, tex2, 1, falpha, 3)
 
-    # ── WHAT COUNTS AS OPAQUE ────────────────────────────────────────────
-    #
-    #  🔴 ON AN ADDITIVE SPRITE, BLACK IS TRANSPARENT - and that, not the
-    #  brightness, is what $overbrightfactor materials need. Source draws
-    #  `$additive 1` by ADDING the texture to the frame, so a black pixel adds
-    #  nothing and disappears. Most additive sheets therefore have a useless
-    #  alpha channel - solid 1 everywhere - because the artwork never needed
-    #  one: the blackness IS the mask.
-    #
-    #  Read that sheet as alpha-blended and you get exactly what glow
-    #  particles were doing: a big dark rectangle with a bright blob in the
-    #  middle, because the black background is being drawn as OPAQUE BLACK.
-    #
-    #  So for an additive material the opacity comes from LUMINANCE, not from
-    #  the alpha channel. Black -> gone, bright -> solid, which is what adding
-    #  it would have looked like.
-    #
-    #  Chosen at BUILD time from the .vmt rather than switched in the shader:
-    #  it is a property of the material, it cannot change per particle, and a
-    #  node nobody can ever flip is a node in the way.
-    if additive:
-        opacity = _nd(nt, "ShaderNodeRGBToBW", (-380, -140),
-                      "additive: black IS transparent", role="RENDERER")
-        _lk(nt, fcol, 2, opacity, 0)        # luminance of the BLENDED frame
-        opacity_out = 0
-    else:
-        opacity, opacity_out = falpha, 0    # the blended sheet alpha
-
-    amul = _nd(nt, "ShaderNodeMath", (-140, -100),
-               "opacity x particle fade", role="OPERATOR",
-               operation="MULTIPLY")
-    _lk(nt, opacity, opacity_out, amul, 0)
-    _lk(nt, a_alpha, 2, amul, 1)
-
-    # THE TINT. Source multiplies the sheet by the particle's colour, so a
-    # white spark sheet becomes orange, green, whatever Color Random rolled.
-    tint = _nd(nt, "ShaderNodeMix", (-140, 120), "sheet x particle colour",
-               role="INITIALIZER", data_type="RGBA", blend_type="MULTIPLY")
-    _sv(tint, 0, 1.0)                       # Factor: full multiply
-    _lk(nt, fcol, 2, tint, 6)               # A: the BLENDED frame
-    _lk(nt, a_col, 0, tint, 7)              # B
-
-    # $OVERBRIGHTFACTOR, straight off the .vmt. 1 is normal, 2 is twice as
-    # hot, and glow sprites lean on it constantly - dropping it is why an
-    # imported flare looks flat next to the same material in SFM. The 2.0 is
-    # the house baseline for "emissive card", multiplied by whatever the
-    # material asked for.
-    emis = _nd(nt, "ShaderNodeEmission", (120, 40),
-               f"emits · overbright {overbright:g}", role="RENDERER")
-    _lk(nt, tint, 2, emis, 0)
-    _sv(emis, 1, 2.0 * max(0.0, float(overbright)))
-
-    # ⚠️ THE BLACK OUTLINE IN CYCLES IS NOT A MATERIAL BUG, AND "FIXING" IT
-    # HERE MAKES THINGS WORSE. An Add Shader looks like the principled answer
-    # - emissive particles are additive, light adds rather than occludes -
-    # but an additive material writes NO ALPHA, so on a transparent film the
-    # render comes back completely empty. Measured: EEVEE 0 lit pixels.
-    #
-    # The real cause is CYCLES' TRANSPARENT BOUNCE LIMIT. Every sprite is a
-    # transparent surface; a ray crossing more of them than Light Paths >
-    # Transparent allows (default 8) is terminated and returns BLACK. That is
-    # why it only appears where sprites OVERLAP, and why it scales with how
-    # many are stacked. It is a scene setting, so op_ras raises it - see
-    # `_raise_transparent_bounces`.
-    transp = _nd(nt, "ShaderNodeBsdfTransparent", (120, 240), role="RENDERER")
-    mix = _nd(nt, "ShaderNodeMixShader", (360, 120), "alpha decides which",
-              role="RENDERER")
-    _lk(nt, amul, 0, mix, 0)
-    _lk(nt, transp, 0, mix, 1)
-    _lk(nt, emis, 0, mix, 2)
-    out = _nd(nt, "ShaderNodeOutputMaterial", (580, 120), role="OUTPUT")
-    _lk(nt, mix, 0, out, 0)
+    # ── SHADING: SFM's own blend maths, measured (0.24.0) ────────────────
+    #  Everything from here to the output is spritecard_output() - the
+    #  measured SpriteCard formula, shared with every card material.
+    bl = blend or legacy_blend(overbright, additive)
+    shading = spritecard_output(nt, fcol.outputs[2], falpha.outputs[0],
+                                a_col.outputs[0], a_alpha.outputs[2], bl,
+                                n_draws=draws)
 
     note(nt, "PER-PARTICLE DATA  ·  read from the instancer", "SEQUENCE", """
 These two Attribute nodes are the whole reason one material can show
@@ -699,25 +829,8 @@ baked onto the point and thrown away one node short of the shader. If a value
 looks ignored, check that something actually CONSUMES it before assuming the
 maths is wrong.
 """, [a_frame, a_alpha, a_col])
-    note(nt, "SHADING  ·  emissive card, ADDITIVE", "RENDERER", """
-Sprites are emissive: they glow rather than react to lights, which is what
-Source additive/blended particles look like.
-
-    sheet colour x sprite_color  ->  Emission
-    emission strength = texture alpha x sprite_alpha
-    Transparent  +  that
-
-🔴 THE BLACK OUTLINE IN CYCLES IS A SCENE SETTING, NOT A SHADER FAULT.
-Every sprite is a transparent surface. A camera ray crossing more of them
-than Light Paths > Transparent permits (default 8) is TERMINATED and comes
-back black - which is why the rim only appears where sprites overlap and gets
-worse the more of them stack up. The importer raises that limit.
-
-An Add Shader is the tempting "correct additive" answer and it is a trap: an
-additive material writes NO ALPHA, so on a transparent film the render comes
-out empty. Measured before reverting it: EEVEE 0 lit pixels.
-""", [tex, amul, tint, emis, transp, mix, out]
-         + ([opacity] if additive else []))
+    note(nt, "SHADING  ·  SFM's SpriteCard, measured", "RENDERER", SHADING_NOTE,
+         [tex] + shading)
     from . import layout
     layout.apply_shader_layout(nt, mat.name)
     return mat

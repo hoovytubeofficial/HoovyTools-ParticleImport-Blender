@@ -363,6 +363,35 @@ OPERATORS = {
              "control_point_number is rare (8 uses) and reported, not built.",
     ),
 
+    #  0.26.3: the beam-maker's curve with the place along it ROLLED per
+    #  particle - Source's C_INIT_CreateAlongPath. HoovyTube's smoke rows
+    #  spawn their puffs anywhere on CP1 -> CP2 with it; before it was built,
+    #  every puff spawned on CP0 in one clump. Source's own defaults (start 0,
+    #  end 0, bulge 0, mid 0.5) - a file states what it changes.
+    "Position Along Path Random": dict(
+        section="INITIALIZER", category="INITIALIZER", stack=ADD,
+        envelope=True, seen=3068,
+        fields=(
+            ("Start Control Point", "start control point number",
+             "NodeSocketInt", 0, 0, None, "count"),
+            ("End Control Point", "end control point number",
+             "NodeSocketInt", 0, 0, None, "count"),
+            ("Bulge", "bulge", "NodeSocketFloat", 0.0, None, None, "hu"),
+            ("Bulge Control",
+             "bulge control 0=random 1=orientation of start pnt "
+             "2=orientation of end point",
+             "NodeSocketInt", 0, 0, 2, "count"),
+            ("Mid Point Position", "mid point position", "NodeSocketFloat",
+             0.5, None, None, "factor"),
+            ("Max Distance", "maximum distance", "NodeSocketFloat", 0.0,
+             0.0, None, "hu"),
+        ),
+        note="the path curve of Position Along Path Sequential (its node "
+             "group, shared) with the fraction along it rolled per particle "
+             "instead of counted - puffs anywhere between the two control "
+             "points, scattered by maximum distance.",
+    ),
+
     "Position Along Path Sequential": dict(
         section="INITIALIZER", category="INITIALIZER", stack=ADD,
         envelope=True, seen=1387,
@@ -653,9 +682,13 @@ OPERATORS = {
             # shadows an envelope display name.
             ("Fade In Start", "start_fade_in_time", "NodeSocketFloat", 0.0,
              None, None, "factor"),
-            ("Fade In End", "end_fade_in_time", "NodeSocketFloat", 0.25,
+            # 0.24.1: SOURCE'S DEFAULTS ARE 0.5 / 0.5 - measured, the
+            # default fade-out starts at half-life (0.24.0 assumed 0.25 /
+            # 0.75). A .pcf only stores what differs from the default, so a
+            # wrong default changes every system that left it alone.
+            ("Fade In End", "end_fade_in_time", "NodeSocketFloat", 0.5,
              None, None, "factor"),
-            ("Fade Out Start", "start_fade_out_time", "NodeSocketFloat", 0.75,
+            ("Fade Out Start", "start_fade_out_time", "NodeSocketFloat", 0.5,
              None, None, "factor"),
             ("Fade Out End", "end_fade_out_time", "NodeSocketFloat", 1.0,
              None, None, "factor"),
@@ -678,10 +711,12 @@ OPERATORS = {
             # SECONDS here, unlike the alpha operator above - 0.05..6 with an
             # average of 0.8 is a time, not a proportion. Two neighbouring
             # operators, two different meanings for "time".
+            # 0.24.1: FRACTIONS OF LIFE, MEASURED - kit 2's fade to black ran
+            # across the whole 4 s life, eased (0.24.0 read seconds).
             ("Fade Start Time", "fade_start_time", "NodeSocketFloat", 0.0,
-             None, None, "sec"),
+             None, None, "factor"),
             ("Fade End Time", "fade_end_time", "NodeSocketFloat", 1.0,
-             None, None, "sec"),
+             None, None, "factor"),
             ("Ease In And Out", "ease_in_and_out", "NodeSocketBool", True,
              None, None, "factor"),
         ),
@@ -697,17 +732,23 @@ OPERATORS = {
              0.0, None, "factor"),
             ("End Scale", "radius_end_scale", "NodeSocketFloat", 1.0,
              0.0, None, "factor"),
-            # SECONDS. The survey reaches start_time 5 and end_time 15, which
-            # cannot be a 0..1 proportion, and there is no `proportional 0/1`
-            # field on this operator the way there is on the alpha fades.
+            # 0.24.1: FRACTIONS OF LIFE, MEASURED - not seconds. Kit 2's
+            # default row grew across the WHOLE 4 s life, and end_time 0.25
+            # was full at a quarter of it. (0.24.0 read seconds off the
+            # corpus ranges; start_time 5 just means "never".)
             ("Start Time", "start_time", "NodeSocketFloat", 0.0,
-             None, None, "sec"),
+             None, None, "factor"),
             ("End Time", "end_time", "NodeSocketFloat", 1.0,
-             None, None, "sec"),
+             None, None, "factor"),
             ("Ease In And Out", "ease_in_and_out", "NodeSocketBool", False,
              None, None, "factor"),
+            # 0.24.1: Source's BiasSIMD, t / ((1/b - 2)(1 - t) + 1), measured:
+            # bias 0.95 is ~60% of the way at 1/16 of life and ~90% by a
+            # third - the dust cloud of the concrete impacts, which grew over
+            # a second without it.
+            ("Scale Bias", "scale_bias", "NodeSocketFloat", 0.5,
+             0.0, 1.0, "factor"),
         ),
-        ignored=("scale_bias",),
         note="third most duplicated operator in the corpus - 75 systems use "
              "two or three. Instances CHAIN, so two are a grow-then-shrink.",
     ),
@@ -818,8 +859,10 @@ OPERATORS = {
              0.0, None, "hu"),
             ("Max Length", "max length", "NodeSocketFloat", 2048.0,
              0.0, None, "hu"),
+            # 0.24.1: default 0, measured - SFM's streaks are full length
+            # from birth (every streak in kit 2's spark row was 22.6 units).
             ("Length Fade In Time", "length fade in time", "NodeSocketFloat",
-             0.5, 0.0, None, "sec"),
+             0.0, 0.0, None, "sec"),
             # NOT IN THE TF2 CORPUS - none of the 484 uses writes it, so it
             # is either newer than these packs or only saved when non-default.
             # It is a real SFM field and it is the one that stops a slow
@@ -1196,3 +1239,14 @@ def ignored_fields(operator):
     The importer should WARN with these rather than let someone believe an
     effect came through intact when a third of its authoring did not."""
     return tuple(OPERATORS[operator].get("ignored", ()))
+
+SFM_DEFAULTS = {
+    ("Radius Random", "radius_min"): 1.0,
+    ("Radius Random", "radius_max"): 1.0,
+    ("Lifetime Random", "lifetime_min"): 0.0,
+    ("Lifetime Random", "lifetime_max"): 0.0,
+    ("Trail Length Random", "length_max"): 0.1,
+    ("emit_continuously", "emission_rate"): 100.0,
+    ("render_animated_sprites", "animation rate"): 0.1,
+    ("render_sprite_trail", "min length"): 0.0,
+}
