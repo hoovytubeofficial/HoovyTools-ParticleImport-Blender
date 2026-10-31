@@ -14,7 +14,7 @@ and for the twin, [SFM Session to BLENDER Importer](https://www.youtube.com/watc
 
 [![Import Particles into Blender - video tutorial](https://img.youtube.com/vi/-NGdPxKTsJA/hqdefault.jpg)](https://www.youtube.com/watch?v=-NGdPxKTsJA)
 
-**[Download 3.0.0](https://github.com/hoovytubeofficial/HoovyTools-ParticleImport-Blender/releases/download/v3.0.0/HoovyTools-ParticleImport-Blender-3.0.0.zip)** - then drag the zip onto Blender. ([All releases](https://github.com/hoovytubeofficial/HoovyTools-ParticleImport-Blender/releases))
+**[Download 3.0.1](https://github.com/hoovytubeofficial/HoovyTools-ParticleImport-Blender/releases/download/v3.0.1/HoovyTools-ParticleImport-Blender-3.0.1.zip)** - then drag the zip onto Blender. ([All releases](https://github.com/hoovytubeofficial/HoovyTools-ParticleImport-Blender/releases))
 
 Pick a `.pcf`, pick a system, press **BUILD THIS SYSTEM**. The effect arrives with all its child systems, its
 materials resolved through the `.vmt` / `.vtf` chain, one control-point rig for the whole effect, and every value the
@@ -68,7 +68,7 @@ Also: [PCF Preview cards and the node graph](https://github.com/hoovytubeofficia
 
 ## Install
 
-1. Download `HoovyTools-ParticleImport-Blender-3.0.0.zip` from [Releases](https://github.com/hoovytubeofficial/HoovyTools-ParticleImport-Blender/releases). Leave it zipped.
+1. Download `HoovyTools-ParticleImport-Blender-3.0.1.zip` from [Releases](https://github.com/hoovytubeofficial/HoovyTools-ParticleImport-Blender/releases). Leave it zipped.
 2. Drag the zip onto any Blender window. Blender offers to install a **Legacy Add-on** - keep *Enable on Install*
    ticked and press OK. (Edit > Preferences > Add-ons > Install from Disk does the same.)
 3. In the 3D Viewport, open the sidebar (`N`) > **HoovyTools** > **Source Particle Import**.
@@ -78,9 +78,10 @@ or with the LOAD button in Dev > Wiring.
 
 **Requirements:** Blender 4.2 or newer (developed on 5.2) and your own copy of Source Filmmaker - the add-on reads
 the `.pcf`, `.vmt` and `.vtf` files there.
-**Optional:** [Pillow](https://pypi.org/project/pillow/) in Blender's Python for PCF Preview's cards, and
-[SFM Session Importer](https://github.com/hoovytubeofficial/HoovyTools-SFMSessionImport-Blender) to bring in whole
-SFM sessions with their particles.
+**Optional:** [SFM Session Importer](https://github.com/hoovytubeofficial/HoovyTools-SFMSessionImport-Blender) to bring
+in whole SFM sessions with their particles. PCF Preview's cards draw with [Pillow](https://pypi.org/project/pillow/):
+Tools > **4.3 Ensure PIL** installs it, built for your Blender, and the card buttons do it themselves the first time
+(needs the internet once). Everything else works without it.
 
 ## Quick start
 
@@ -113,6 +114,12 @@ Inside **Behavior Report > Logs**:
 
 Every line the add-on prints starts with `[Source Particle Import]`, so it is easy to find in a busy console.
 
+**`cannot import name '_imaging' from 'PIL'`?** That Pillow was installed for another Python - another Blender, a
+system Python, or Load Previous Settings carrying `scripts\modules` over. Since 3.0.1 the add-on loads anyway:
+Dev > Wiring > **REPAIR** on the Preview cards row (or Tools > 4.3 Ensure PIL) puts one built for this Blender in
+its place. If the add-on will not load at all, open `# tools/Ensure PIL/Ensure PIL (V1).py` in Blender's Text
+Editor and press **Run Script**.
+
 ## Tutorial: the standalone tools
 
 The **Tools** tab (the icon between Props and the gear) works without importing a `.pcf` at all. Each tool is one
@@ -124,7 +131,7 @@ symbol on the right says how the last run went.
 | 1 Create Renderer System | 1.1 Animated Sprites, 1.2 Rope, 1.3 Sprite Trail - a system built by hand from a `.vmt` or `.vtf` |
 | 2 Imports | 2.1 Import VTF, 2.2 VTF + Sprite, 2.3 Import VMT, 2.4 VMT + Sprite - DXT1/3/5 and sprite sheets, no external tools |
 | 3 Set Scale | 3.1 Hammer Unit Grid (thin lines, 16 units a square), 3.2 Create Camera |
-| 4 PCF Preview | 4.1 one effect, 4.2 a whole folder - preview cards, with folder icons |
+| 4 PCF Preview | 4.1 one effect, 4.2 a whole folder - preview cards, with folder icons; 4.3 Ensure PIL - the Pillow the cards draw with |
 | 5 Particle Size | 5.1 Calculate Size - how big an effect gets, read from the `.pcf` without importing it |
 | 6 Share What You Made | 6.1-6.4 Node to Code - a built effect or material as a runnable Python script |
 | 7 Performance | 7.1 Proxy View - flat stand-ins for heavy effects |
@@ -136,14 +143,17 @@ turbulence and attraction only keep particles closer.
 Some tools also come as a **Text Editor version** - a plain script that does the same job:
 
 1. **Dev** tab > **DEVELOPER MODE** (the last button).
-2. Unfold 5.1 Calculate Size (or 4.1 Create PCF Preview): a **Text Editor Tool** button appears. It opens the
-   folder with `Calculate Particle Size (V1).py`.
+2. Unfold 5.1 Calculate Size (or 4.1 Create PCF Preview, or 4.3 Ensure PIL): a **Text Editor Tool** button
+   appears. It opens the folder with `Calculate Particle Size (V1).py`.
 3. Open it in Blender's Text Editor, set `PCF_FILE = r"C:\path\to\effect.pcf"` at the top, press
    **Run Script** (`Alt+P`). The sizes print to the system console.
 
 ## Version history
 
-- **3.0.0** - this release: the HoovyTools sidebar tab, ribbons for every tool, Calculate Size, Match .blend, the
+- **3.0.1** - this release: **Ensure PIL**. A Pillow built for another Python (`cannot import name '_imaging'`)
+  no longer stops the add-on loading - nor SFM Session Importer's particles; 4.3 Ensure PIL, the Wiring row's REPAIR /
+  INSTALL and the card buttons install one built for your Blender, no restart.
+- **3.0.0** - the HoovyTools sidebar tab, ribbons for every tool, Calculate Size, Match .blend, the
   automatic camera, the simple Hammer grid, and a Dev tab with Wiring, PRINT HELP and Configure.
 - **2.0.0** - the version that was on [hoovytube.com](https://hoovytube.com), published there as 0.23.0. Kept on
   [Releases](https://github.com/hoovytubeofficial/HoovyTools-ParticleImport-Blender/releases/tag/v2.0.0) for

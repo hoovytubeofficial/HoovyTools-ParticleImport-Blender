@@ -8,7 +8,39 @@ import re
 import shutil
 import time
 
-from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageFont
+#3.0.1 ENSURE PIL: a missing or broken Pillow no longer stops the whole add-on loading (this module is imported
+#when the add-on registers). The names stay None until need_pil() finds - or installs - a Pillow that works
+try:
+    from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageFont
+except Exception:                                             # missing, or built for another Python
+    Image = ImageChops = ImageDraw = ImageFilter = ImageFont = None
+
+
+def need_pil(install=True, log=print):
+    """(works, message): Pillow ready for the cards - installed or repaired first when it is missing or broken
+    (tools/pil_ensure.py), then bound here and in pcf_icons. Never raises."""
+    global Image, ImageChops, ImageDraw, ImageFilter, ImageFont
+    if Image is not None:
+        return True, ""
+    from . import pil_ensure
+    ok, msg = pil_ensure.ensure(install=install, log=log)
+    if not ok:
+        return False, msg
+    try:
+        from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageFont
+        from . import pcf_icons
+        pcf_icons.bind_pil()
+    except Exception as exc:
+        return False, "Pillow installed but not loaded: %s: %s" % (type(exc).__name__, exc)
+    return True, msg
+
+
+def _require_pil():
+    """need_pil(), raising when Pillow cannot be had - for the functions that draw."""
+    ok, msg = need_pil()
+    if not ok:
+        raise RuntimeError("PCF Preview needs Pillow (PIL): " + msg)
+
 
 CARD = 2048
 WINFONTS = os.path.join(os.environ.get("WINDIR", r"C:\Windows"), "Fonts")
@@ -181,6 +213,7 @@ def dominant_colour(render, min_strength=0.12):
     10-degree bin is refined to the weighted mean hue around it. Below
     `min_strength` (the share of light that is coloured at all) the effect is
     called grey and keeps the neutral plates."""
+    _require_pil()                                             # 3.0.1 ensure pil
     import numpy as np
     im = render.convert("RGB") if hasattr(render, "convert") else Image.open(render).convert("RGB")
     im.thumbnail((256, 256))
@@ -445,7 +478,16 @@ def _text(img, xy_center, text, font, fill, glow=None, shadow=True):
     return w, h
 
 
-_MEASURE = ImageDraw.Draw(Image.new("L", (8, 8)))
+_MEASURE = None
+
+
+def _measure():
+    """A scratch surface to measure text on - made on first use. 3.0.1 ENSURE PIL: made at import, it needed Pillow
+    before the add-on had even loaded, so a missing or broken Pillow took the whole add-on down with it."""
+    global _MEASURE
+    if _MEASURE is None:
+        _MEASURE = ImageDraw.Draw(Image.new("L", (8, 8)))
+    return _MEASURE
 
 
 def _fit(text, size, min_size, width):
@@ -455,7 +497,7 @@ def _fit(text, size, min_size, width):
     s = int(size)
     while True:
         f = _font(s)
-        if _MEASURE.textlength(text, font=f) <= width:
+        if _measure().textlength(text, font=f) <= width:
             return f
         if s <= int(min_size):
             return None
@@ -526,6 +568,7 @@ def visible_crop(render, keep=0.985, margin=0.08, ref=None):
 
 def light_score(render):
     """Mean luminance 0..1 of a render - how much effect there is to look at."""
+    _require_pil()                                             # 3.0.1 ensure pil
     im = render.convert("L") if hasattr(render, "convert") else Image.open(render).convert("L")
     im.thumbnail((256, 256))
     hist = im.histogram()
@@ -748,7 +791,7 @@ def _compose_glass(render, title, subtitle=None, description=None, path_main=Non
     img_top = title_box[3] + s(24)
     if subtitle:
         f_sub = _fit(subtitle, s(112), s(56), size - s(560)) or _font(s(56))
-        cw = max(s(680), int(_MEASURE.textlength(subtitle, font=f_sub) + s(400)))
+        cw = max(s(680), int(_measure().textlength(subtitle, font=f_sub) + s(400)))
         chip_box = (size // 2 - cw // 2, s(298), size // 2 + cw // 2, s(452))
         img_top = chip_box[3] + s(20)
     foot_h = s(220) if path_sub else s(144)
@@ -827,6 +870,7 @@ def compose_card(render, title, subtitle=None, description=None, path_main=None,
     = neutral), `folder_rgb` the path band and the frame (None = cream).
     `bars` "glass" (0.26.3, translucent over a full-bleed picture, `bar_alpha`
     0..1) or "solid" (the 0.26.2 card)."""
+    _require_pil()                                             # 3.0.1 ensure pil
     if str(bars or "glass").lower() == "solid":
         return _compose_solid(render, title, subtitle, description, path_main, path_sub, size, crop_ref,
                               title_rgb=title_rgb, folder_rgb=folder_rgb)
@@ -971,6 +1015,7 @@ def make_card(pcf_path, render, description=None, include_sub_folder=False,
     card and returns its path. `out_path` None = `<name> (preview).<format>`
     beside the .pcf, versioned so nothing is overwritten. `style` (DEFAULT_STYLE
     keys) is the caller's choice; the effect's settings file beats it."""
+    _require_pil()                                             # 3.0.1 ensure pil
     st = dict(DEFAULT_STYLE)
     st.update({k: v for k, v in (style or {}).items() if v is not None})
     st.update({k: v for k, v in load_overrides(pcf_path).items() if k in STYLE_KEYS})

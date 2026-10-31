@@ -64,6 +64,8 @@ ICON_KEYS = (
     "developer_mode",
     # 3.0.0: BUILD THIS SYSTEM
     "build_system",
+    # 3.0.1: ENSURE PIL (Tools > 4.3) - Developer icons/make_ensure_pil_icon (3.0.1).py
+    "ensure_pil",
 )
 
 ICON_FILES = {
