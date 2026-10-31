@@ -22,7 +22,7 @@ bl_info = {
     "name":        "Source Particle Import",
     "description": "Import SFM / Source .pcf particle systems into Blender as editable geometry nodes",
     "author":      "Kajetan (HoovyTube)",
-    "version":     (3, 0, 0),
+    "version":     (3, 0, 1),
     "blender":     (4, 2, 0),
     "location":    "File > Import > Source Engine (.pcf) + 3D View sidebar (N) > HoovyTools",
     "category":    "Import-Export",

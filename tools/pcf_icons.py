@@ -32,7 +32,29 @@ import json
 import os
 import re
 
-from PIL import Image, ImageOps
+# 3.0.1 ENSURE PIL: guarded like pcf_preview's - bound by bind_pil() once pcf_preview.need_pil() has a Pillow
+try:
+    from PIL import Image, ImageOps
+except Exception:                                             # missing, or built for another Python
+    Image = ImageOps = None
+
+
+def bind_pil():
+    """Pillow's names bound again, after pcf_preview.need_pil() installed or repaired it."""
+    global Image, ImageOps
+    from PIL import Image, ImageOps
+
+
+def _require_pil():
+    """Pillow ready for the icons - pcf_preview.need_pil() installs or repairs it first. Raises when it cannot."""
+    if Image is not None:
+        return
+    from . import pcf_preview
+    ok, msg = pcf_preview.need_pil()
+    if not ok:
+        raise RuntimeError("Folder icons need Pillow (PIL): " + msg)
+    if Image is None:
+        bind_pil()
 
 ICO_SIZES = (16, 24, 32, 48, 64, 128, 256)
 ORB = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "images", "preview", "preview_orb.png")
@@ -45,6 +67,7 @@ def orb_icon(face, rim_rgb=None, size=512, bevel=1.0, rim_strength=0.8, shape_sc
     """Ico Studio V5's render() with its circle overlay and rim mode Color: the
     face fills the orb edge to edge, the orb's own light shades it (glass
     highlight, dark edge), and the rim takes `rim_rgb` (silver when None)."""
+    _require_pil()                                             # 3.0.1 ensure pil
     import numpy as np
     overlay = Image.open(ORB).convert("RGBA")
     box = overlay.getchannel("A").point(lambda v: 255 if v > 24 else 0).getbbox()
@@ -125,6 +148,7 @@ def face_score(face, strength=0.0):
 def face_from_card(card):
     """The effect out of an existing card: the picture
     region, then cropped to where its light is."""
+    _require_pil()                                             # 3.0.1 ensure pil
     from . import pcf_preview
     im = Image.open(card).convert("RGB")
     w, h = im.size
@@ -299,6 +323,7 @@ def make_folder_icons(root, results, icon_dir, colours=None, exclude=None, apply
     else one of the folder's existing cards. Applied to the folder only when
     it has no icon yet (`apply_bare`), or always with `apply_all` (backed up).
     -> [report rows]."""
+    _require_pil()                                             # 3.0.1 ensure pil
     from . import pcf_preview
     exclude = pcf_preview.DEFAULT_EXCLUDE if exclude is None else exclude
     os.makedirs(icon_dir, exist_ok=True)

@@ -69,13 +69,17 @@ def _check_fallbacks(_ctx):
 
 
 def _check_pillow(_ctx):
-    try:
-        import PIL
-        return OK, "Pillow %s" % getattr(PIL, "__version__", "?"), PIL.__file__, None, None
-    except Exception:
-        py = Path(sys.executable)
-        return (WARN, "missing", "PCF Preview draws its cards with Pillow, which this Blender's Python does not "
-                "have. Everything else works. To add it: \"%s\" -m pip install Pillow" % py, None, None)
+    # 3.0.1: the REAL test (PIL.Image and a pixel) - a bare `import PIL` passed on a Pillow built for another
+    # Python, which then fails with "can't import name '_imaging'"
+    from ..tools import pil_ensure
+    ok, ver, where, err = pil_ensure.status()
+    if ok:
+        return OK, "Pillow %s" % ver, where, where, None
+    return (WARN, "broken" if where else "missing",
+            "PCF Preview draws its cards with Pillow: %s. Everything else works. ENSURE PIL installs one built for "
+            "this Blender (needs the internet once). By hand: %s" % (pil_ensure.why(err, where),
+                                                                     pil_ensure.manual_command()),
+            where, ("pil", "REPAIR" if where else "INSTALL"))
 
 
 def _check_worker(_ctx):
@@ -252,6 +256,64 @@ class HTP_OT_EnableSessionImporter(Operator):
             self.report({"ERROR"}, "Could not enable %s: %s" % (self.module, exc))
             return {"CANCELLED"}
         wiring(context, force=True)
+        return {"FINISHED"}
+
+
+class HTP_OT_EnsurePil(Operator):
+    """Make Pillow (PIL) work in this Blender - PCF Preview draws its cards with it.
+
+Blender brings no Pillow of its own, and a Pillow put there by another
+Python (another Blender, a system Python, Load Previous Settings) fails
+with "cannot import name '_imaging'". This installs Pillow with THIS
+Blender's own Python, so it always fits: over the broken copy, else into
+Blender's site-packages, else into your user scripts\\modules folder.
+Needs the internet once (about 7 MB from PyPI). No restart.
+
+THIS FEATURE WAS ADDED IN VERSION 3.0.1 AND IS IN EXPERIMENTAL STAGE"""
+    bl_idname = "htp.ensure_pil"
+    bl_label = "Ensure PIL"
+    bl_options = {"REGISTER"}
+
+    def execute(self, context):
+        from ..tools import pcf_preview, pil_ensure, progress
+        ok, ver, where, _err = pil_ensure.status()
+        if ok:
+            msg = "Pillow %s works (%s)" % (ver, where)
+        else:
+            with progress.job("Source Particle Import - Ensure PIL"):
+                progress.note("Installing Pillow (PIL) for this Blender - about 7 MB from PyPI")
+                ok, msg = pil_ensure.ensure(install=True)
+        wiring(context, force=True)
+        if not ok:
+            self.report({"ERROR"}, msg)
+            return {"CANCELLED"}
+        pcf_preview.need_pil(install=False)                    # the card and icon modules bound to it
+        print("[HT_PIL]  " + msg)
+        self.report({"INFO"}, msg)
+        return {"FINISHED"}
+
+
+class HTP_OT_OpenPilTool(Operator):
+    """Open the folder holding the Text Editor version of Ensure PIL.
+
+"Ensure PIL (V1).py" does the same from Blender's Text Editor - and needs
+nothing else: it works even when an add-on cannot load because of a broken
+Pillow. Open it, press Run Script.
+
+THIS FEATURE WAS ADDED IN VERSION 3.0.1 AND IS IN EXPERIMENTAL STAGE"""
+    bl_idname = "htp.open_pil_tool"
+    bl_label = "Open Ensure PIL Tool Folder"
+    bl_options = {"INTERNAL"}
+
+    def execute(self, context):
+        folder = Path(__file__).resolve().parent.parent / "# tools" / "Ensure PIL"
+        if not folder.is_dir():
+            self.report({"ERROR"}, "Missing: %s" % folder)
+            return {"CANCELLED"}
+        if bpy.app.background:
+            print("[HT_PIL]  tool folder: %s" % folder)
+            return {"FINISHED"}
+        bpy.ops.wm.path_open(filepath=str(folder))
         return {"FINISHED"}
 
 
@@ -525,6 +587,8 @@ def _row_button(row, r):
         row.operator("htp.set_pref_folder", text="LOAD", icon="FILEBROWSER").pref = fix[1]
     elif fix and fix[0] == "enable":
         row.operator("htp.enable_session_importer", text="ENABLE", icon="CHECKBOX_HLT").module = fix[1]
+    elif fix and fix[0] == "pil":
+        row.operator("htp.ensure_pil", text=fix[1], icon="IMPORT")             # 3.0.1 install / repair
     elif r["path"]:
         row.operator("wm.path_open", text="", icon="FILE_FOLDER").filepath = r["path"]
     else:
@@ -747,4 +811,5 @@ class HTP_OT_OpenLink(Operator):
 
 
 CLASSES = (HTP_OT_RecheckWiring, HTP_OT_SetPrefFolder, HTP_OT_EnableSessionImporter, HTP_OT_OpenLogFolder,
-           HTP_OT_PrintHelp, HTP_OT_PrintBehavior, HTP_OT_OpenConfig, HTP_OT_ReloadConfig, HTP_OT_OpenLink)
+           HTP_OT_PrintHelp, HTP_OT_PrintBehavior, HTP_OT_OpenConfig, HTP_OT_ReloadConfig, HTP_OT_OpenLink,
+           HTP_OT_EnsurePil, HTP_OT_OpenPilTool)

@@ -254,7 +254,7 @@ FOLDS = ("sec_tools_create", "sec_tools_imports", "sec_tools_scale", "sec_tools_
          "sec_dev_credits", "sec_dev_configure")
 TOOL_FOLDS = ("create_ras", "create_rope", "create_trail", "import_vtf", "import_vtf_sprite", "import_vmt",
               "import_vmt_sprite", "hammer_grid", "house_camera", "create_pcf_preview", "process_pcf_folder",
-              "calculate_particle_size")
+              "calculate_particle_size", "ensure_pil")
 pi.HTP_Props.__annotations__.update({
     key: bpy.props.BoolProperty(name="Open", description="Fold or unfold", default=False)
     for key in FOLDS + tuple("tool_" + t for t in TOOL_FOLDS)
@@ -331,7 +331,8 @@ class HTP_PT_Main(Panel):
             ("3.2", "Create Camera", "htp.house_camera", "house_camera", "OUTLINER_OB_CAMERA"))),
         ("PREVIEW", "PCF Preview", "pcf_preview", "IMAGE_DATA", (
             ("4.1", "Create PCF Preview", "htp.create_pcf_preview", "pcf_preview", "IMAGE_DATA"),
-            ("4.2", "Whole Folder", "htp.process_pcf_folder", "process_folder", "FOLDER_REDIRECT"))),
+            ("4.2", "Whole Folder", "htp.process_pcf_folder", "process_folder", "FOLDER_REDIRECT"),
+            ("4.3", "Ensure PIL", "htp.ensure_pil", "ensure_pil", "IMPORT"))),
         ("SIZE", "Particle Size", "particle_size", "FULLSCREEN_ENTER", (
             ("5.1", "Calculate Size", "htp.calculate_particle_size", "particle_size",
              "FULLSCREEN_ENTER"),)),
@@ -353,6 +354,10 @@ class HTP_PT_Main(Panel):
                 return None
             return lambda body: body.operator("htp.open_preview_tool", text="Text Editor Tool",
                                               icon="FILE_FOLDER")
+        if idname == "htp.ensure_pil":
+            if not dev:
+                return None
+            return lambda body: body.operator("htp.open_pil_tool", text="Text Editor Tool", icon="FILE_FOLDER")
         if idname == "htp.calculate_particle_size":
             def size_extra(body):
                 from . import op_size

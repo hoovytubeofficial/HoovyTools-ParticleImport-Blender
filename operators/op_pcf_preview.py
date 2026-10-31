@@ -204,6 +204,27 @@ class _Runner:
             pass
 
 
+def _pillow_ready(op):
+    """3.0.1 ENSURE PIL: the cards and icons need Pillow - installed or repaired here when it is missing or broken
+    (a progress bar while pip runs). Else the reason and the hand command, and nothing starts."""
+    if pcf_preview.Image is not None:
+        return True
+    from ..tools import progress
+    with progress.job("Source Particle Import - Ensure PIL"):
+        progress.note("Installing Pillow (PIL) for this Blender - about 7 MB from PyPI")
+        ok, msg = pcf_preview.need_pil()
+    try:
+        from . import op_dev
+        op_dev.wiring(bpy.context, force=True)                 # the Preview Cards row says what happened
+    except Exception:
+        pass
+    if not ok:
+        op.report({"ERROR"}, msg)
+        return False
+    print(f"[HT_PIL]  {msg}")
+    return True
+
+
 def _work_dir():
     return os.path.join(bpy.app.tempdir or tempfile.gettempdir(), "htp_preview_%d" % int(time.time() * 1000))
 
@@ -310,6 +331,8 @@ THIS FEATURE WAS ADDED IN VERSION 0.25.0 AND IS IN EXPERIMENTAL STAGE"""
         files, system, why = self._files_and_system(context)
         if not files:
             self.report({"ERROR"}, why)
+            return {"CANCELLED"}
+        if not _pillow_ready(self):
             return {"CANCELLED"}
         style = self._style()
         if system:
@@ -427,6 +450,8 @@ THIS FEATURE WAS ADDED IN VERSION 0.26.0 AND IS IN EXPERIMENTAL STAGE"""
             self.report({"ERROR"}, f"Not a folder: {root or '(none - set the SFM path in Preferences)'}")
             return {"CANCELLED"}
         self._root = root
+        if not _pillow_ready(self):
+            return {"CANCELLED"}
         files, counts = pcf_preview.collect_pcfs(root, self._exclude(), skip_carded=True)
         print(f"[HT_PREVIEW]  {root}: {len(files)} effect(s) need a card; {counts['carded']} already "
               f"have one, {counts['excluded_folders']} folder(s) skipped")
