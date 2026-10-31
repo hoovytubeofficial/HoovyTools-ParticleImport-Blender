@@ -913,17 +913,57 @@ OPERATORS = {
 
     "Rotation Yaw Random": dict(
         section="INITIALIZER", category="INITIALIZER", stack=LAST_WINS,
-        envelope=False, seen=22,
+        envelope=False, seen=1142,
         fields=(
             ("Yaw Min", "yaw_offset_min", "NodeSocketFloat",
              0.0, None, None, "deg"),
             ("Yaw Max", "yaw_offset_max", "NodeSocketFloat",
              0.0, None, None, "deg"),
+            ("Yaw Initial", "yaw_initial", "NodeSocketFloat",
+             0.0, None, None, "deg"),
+            ("Yaw Exponent", "yaw_random_exponent", "NodeSocketFloat",
+             1.0, 0.0, None, "factor"),
         ),
-        ignored=("yaw_initial", "yaw_random_exponent"),
-        note="a real yaw angle per particle, shown the only way a card that "
-             "always faces the camera can show it: horizontal "
-             "foreshortening, cos(yaw) on the card's X scale.",
+        note="yaw = yaw_initial + mix(min, max, random ^ exponent) per "
+             "particle. Camera-facing and erect cards show it as horizontal "
+             "foreshortening, cos(yaw) on the card's X scale; a card locked "
+             "to a control point (orientation 2) spins in its own plane.",
+    ),
+
+    "Remap Percentage Between Two Control Points to Scalar": dict(
+        section="OPERATOR", category="OPERATOR", stack=CHAIN, envelope=True,
+        seen=72,
+        fields=(
+            ("Start CP", "starting control point", "NodeSocketInt", 0,
+             0, None, "count"),
+            ("End CP", "ending control point", "NodeSocketInt", 1,
+             0, None, "count"),
+            ("Percentage Min", "percentage minimum", "NodeSocketFloat", 0.0,
+             None, None, "factor"),
+            ("Percentage Max", "percentage maximum", "NodeSocketFloat", 1.0,
+             None, None, "factor"),
+            ("Output Min", "output minimum", "NodeSocketFloat", 0.0,
+             None, None, "factor"),
+            ("Output Max", "output maximum", "NodeSocketFloat", 1.0,
+             None, None, "factor"),
+            # Source's field ids, as for Remap Distance: 3 = radius,
+            # 7 = alpha. Anything else leaves the particle untouched
+            ("Output Field", "output field", "NodeSocketInt", 3,
+             0, None, "count"),
+            ("Scale Initial", "output is scalar of initial random range",
+             "NodeSocketBool", False, None, None, "factor"),
+            # on (Source's default): the fraction is the distance from the
+            # start CP over the CP-to-CP distance. Off: the particle is
+            # projected onto the line between them first
+            ("Radial", "treat distance between points as radius",
+             "NodeSocketBool", True, None, None, "factor"),
+        ),
+        ignored=("output is scalar of current value",
+                 "only active within input range"),
+        note="t = |particle - start CP| / |end CP - start CP|, remapped from "
+             "(percentage min .. max) to (output min .. max), CLAMPED. Field 3 "
+             "writes radius, 7 alpha; Scale Initial multiplies the rolled "
+             "value. Percentage min may be above max - that reverses it.",
     ),
 
     # ── constraint ───────────────────────────────────────────────────────
@@ -1249,4 +1289,5 @@ SFM_DEFAULTS = {
     ("emit_continuously", "emission_rate"): 100.0,
     ("render_animated_sprites", "animation rate"): 0.1,
     ("render_sprite_trail", "min length"): 0.0,
+    ("Rotation Yaw Random", "yaw_offset_max"): 360.0,
 }

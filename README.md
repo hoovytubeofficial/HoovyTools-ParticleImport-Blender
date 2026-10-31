@@ -14,7 +14,7 @@ and for the twin, [SFM Session to BLENDER Importer](https://www.youtube.com/watc
 
 [![Import Particles into Blender - video tutorial](https://img.youtube.com/vi/-NGdPxKTsJA/hqdefault.jpg)](https://www.youtube.com/watch?v=-NGdPxKTsJA)
 
-**[Download 3.0.1](https://github.com/hoovytubeofficial/HoovyTools-ParticleImport-Blender/releases/download/v3.0.1/HoovyTools-ParticleImport-Blender-3.0.1.zip)** - then drag the zip onto Blender. ([All releases](https://github.com/hoovytubeofficial/HoovyTools-ParticleImport-Blender/releases))
+**[Download 3.0.2](https://github.com/hoovytubeofficial/HoovyTools-ParticleImport-Blender/releases/download/v3.0.2/HoovyTools-ParticleImport-Blender-3.0.2.zip)** - then drag the zip onto Blender. ([All releases](https://github.com/hoovytubeofficial/HoovyTools-ParticleImport-Blender/releases))
 
 Pick a `.pcf`, pick a system, press **BUILD THIS SYSTEM**. The effect arrives with all its child systems, its
 materials resolved through the `.vmt` / `.vtf` chain, one control-point rig for the whole effect, and every value the
@@ -68,7 +68,7 @@ Also: [PCF Preview cards and the node graph](https://github.com/hoovytubeofficia
 
 ## Install
 
-1. Download `HoovyTools-ParticleImport-Blender-3.0.1.zip` from [Releases](https://github.com/hoovytubeofficial/HoovyTools-ParticleImport-Blender/releases). Leave it zipped.
+1. Download `HoovyTools-ParticleImport-Blender-3.0.2.zip` from [Releases](https://github.com/hoovytubeofficial/HoovyTools-ParticleImport-Blender/releases). Leave it zipped.
 2. Drag the zip onto any Blender window. Blender offers to install a **Legacy Add-on** - keep *Enable on Install*
    ticked and press OK. (Edit > Preferences > Add-ons > Install from Disk does the same.)
 3. In the 3D Viewport, open the sidebar (`N`) > **HoovyTools** > **Source Particle Import**.
@@ -150,7 +150,10 @@ Some tools also come as a **Text Editor version** - a plain script that does the
 
 ## Version history
 
-- **3.0.1** - this release: **Ensure PIL**. A Pillow built for another Python (`cannot import name '_imaging'`)
+- **3.0.2** - this release: Random Force, Pull towards control point and twist around axis run on the same
+  clock as Gravity (they ran a step ahead); Rotation Yaw Random spins cards locked to a control point and reads Yaw
+  Initial / Yaw Exponent; new operator **Remap Percentage Between Two Control Points to Scalar** (tapered beams).
+- **3.0.1** - **Ensure PIL**. A Pillow built for another Python (`cannot import name '_imaging'`)
   no longer stops the add-on loading - nor SFM Session Importer's particles; 4.3 Ensure PIL, the Wiring row's REPAIR /
   INSTALL and the card buttons install one built for your Blender, no restart.
 - **3.0.0** - the HoovyTools sidebar tab, ribbons for every tool, Calculate Size, Match .blend, the
