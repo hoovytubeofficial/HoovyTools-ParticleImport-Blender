@@ -96,6 +96,7 @@ OFF_BY_DEFAULT = ("Velocity Random", "Movement Lock to Control Point",
                   # file lists
                   "Movement Maintain Position Along Path",
                   "Remap Distance to Control Point to Scalar",
+                  "Remap Percentage Between Two Control Points to Scalar",
                   "Alpha Fade In Simple", "Alpha Fade Out Simple")
 
 # Which operators this build can genuinely run more than one of, and how the
@@ -131,6 +132,7 @@ STACKABLE = {
     #chained remaps: each SETS its field when its field id matches, so the
     #last one targeting the same field wins and different fields coexist.
     "Remap Distance to Control Point to Scalar": spec.CHAIN,
+    "Remap Percentage Between Two Control Points to Scalar": spec.CHAIN,
 }
 
 
@@ -2545,6 +2547,8 @@ importer can say so out loud.
             _lk(ng, gi, gon(OPY), yr, _in(yr, "Enable"))
             _lk(ng, gi, gs(OPY, "Yaw Min"), yr, _in(yr, "Yaw Min"))
             _lk(ng, gi, gs(OPY, "Yaw Max"), yr, _in(yr, "Yaw Max"))
+            _lk(ng, gi, gs(OPY, "Yaw Initial"), yr, _in(yr, "Yaw Initial"))
+            _lk(ng, gi, gs(OPY, "Yaw Exponent"), yr, _in(yr, "Exponent"))
             _lp(ng, PID, yr, _in(yr, "ID"))
             _lk(ng, gi, g("Seed"), yr, _in(yr, "Seed"))
             old_link = next(
@@ -2558,8 +2562,59 @@ importer can say so out loud.
                 ng.links.new(src_sock, mulf.inputs[0])
             else:
                 mulf.inputs[0].default_value = 1.0
-            _lk(ng, yr, 0, mulf, 1)
+            squish = (yr, 0)
+            # 3.0.2: A CARD LOCKED TO A CONTROL POINT SPINS INSTEAD. Yaw is
+            # a turn about the up axis; a type-2 card lies in the CP's XY
+            # plane, so that axis is its own normal and the turn is an
+            # in-plane spin - added to the roll, with no squish. Camera-
+            # facing and erect cards keep the squish above
+            sr_store = next(
+                (n for n in ng.nodes
+                 if n.bl_idname == "GeometryNodeStoreNamedAttribute"
+                 and n.inputs[2].default_value == "sprite_roll"), None)
+            if not (rope or trail) and sr_store is not None:
+                is2y = _nd(ng, "FunctionNodeCompare", (3260, -2400),
+                           "orientation 2 = locked to a CP",
+                           role="INITIALIZER", data_type="INT",
+                           operation="EQUAL")
+                _lk(ng, gi, gs("render_animated_sprites", "Orientation Type"),
+                    is2y, 0)
+                _sv(is2y, 1, 2)
+                no_sq = _nd(ng, "GeometryNodeSwitch", (3440, -2400),
+                            "CP-locked: no squish", role="INITIALIZER",
+                            input_type="FLOAT")
+                _lk(ng, is2y, 0, no_sq, 0)
+                _lk(ng, yr, 0, no_sq, 1)
+                _sv(no_sq, 2, 1.0)
+                squish = (no_sq, 0)
+                spin = _nd(ng, "GeometryNodeSwitch", (3440, -2560),
+                           "CP-locked: the yaw as a spin", role="INITIALIZER",
+                           input_type="FLOAT")
+                _lk(ng, is2y, 0, spin, 0)
+                _sv(spin, 1, 0.0)
+                _lk(ng, yr, yr.outputs.find("Yaw"), spin, 2)
+                roll_plus = _nd(ng, "ShaderNodeMath", (3620, -2560),
+                                "roll + that", role="INITIALIZER",
+                                operation="ADD")
+                old_roll = next(
+                    (l for l in ng.links if l.to_node.name == sr_store.name
+                     and l.to_socket.name == "Value"), None)
+                if old_roll is not None:
+                    ng.links.new(old_roll.from_socket, roll_plus.inputs[0])
+                _lk(ng, spin, 0, roll_plus, 1)
+                _lk(ng, roll_plus, 0, sr_store, 3)
+            _lp(ng, squish, mulf, 1)
             _lk(ng, mulf, 0, sf_store, 3)
+            pn = P.get(spec.panel_name(OPY))
+            if pn is not None:
+                pn.description = (
+                    "A yaw per particle: initial + min + random^exponent x "
+                    "(max - min). Camera-facing and erect cards show it as "
+                    "a horizontal squish; a card locked to a control point "
+                    "(orientation 2) spins in its own plane instead.\n\n"
+                    "YAW INITIAL, YAW EXPONENT AND THE ORIENTATION 2 SPIN "
+                    "WERE ADDED IN VERSION 3.0.2 AND ARE IN EXPERIMENTAL "
+                    "STAGE")
 
     # =====================================================================
     # FORCE  ·  random force, per tick (the crackle) - SIM BUILDS only
@@ -2615,6 +2670,148 @@ importer can say so out loud.
             _lk(ng, addf, 0, dv, 0)
         else:
             _lk(ng, tickf, 0, dv, 0)
+
+    # =====================================================================
+    # 3.0.2  ·  the integrated forces run on the same clock as gravity
+    # =====================================================================
+    # Measured: Random Force -950 stopped a 365 u/s launch at 34 u where
+    # Gravity -950 stops it at 70 (the physics answer, 70.1). Three causes,
+    # all fixed here, at the end for name stability like the splices above:
+    #
+    # 1. ONE STATE, READ ONCE. A field is evaluated where it is used, so the
+    # force_offset store re-read force_velocity AFTER the velocity store
+    # had written this frame's value - a whole extra step of force every
+    # frame. A Capture Attribute now takes both values before either is
+    # written (the leash's corrected values included)
+    # 2. A POINT STEPS only what IT HAS LIVED. Born part-way thru a frame
+    # (birth time is backdated), it has lived `age`, not a whole dt, on
+    # its first frame: each point steps min(age, dt)
+    # 3. THE STEP RIDES THE AVERAGE VELOCITY (before + after) - the velocity
+    # after alone ran half a step ahead; a constant force now lands
+    # exactly on a t^2/2 at any frame rate
+    if sim:
+        age_pos = _nd(ng, "ShaderNodeMath", (1000, -1960), "age, never < 0",
+                      role="TIME", operation="MAXIMUM")
+        _lp(ng, AGE, age_pos, 0)
+        _sv(age_pos, 1, 0.0)
+        dt_p = _nd(ng, "ShaderNodeMath", (1200, -1960),
+                   "this point's dt = min(age, dt)", role="TIME",
+                   operation="MINIMUM")
+        _lk(ng, age_pos, 0, dt_p, 0)
+        _lp(ng, DT, dt_p, 1)
+        # links.new onto an occupied input replaces the old link
+        _lk(ng, dt_p, 0, dv, 3)
+        _lk(ng, dt_p, 0, k_dt, 1)
+        v_avg = _nd(ng, "ShaderNodeVectorMath", (1900, -1960),
+                    "velocity before + after", role="OPERATOR",
+                    operation="ADD")
+        _lk(ng, fvel_read, 0, v_avg, 0)
+        _lk(ng, v_new, 0, v_avg, 1)
+        half_dt = _nd(ng, "ShaderNodeMath", (1900, -2300), "dt / 2",
+                      role="TIME", operation="MULTIPLY")
+        _lk(ng, dt_p, 0, half_dt, 0)
+        _sv(half_dt, 1, 0.5)
+        _lk(ng, v_avg, 0, step, 0)
+        _lk(ng, half_dt, 0, step, 3)
+        # the leash's velocity bleed divides by the same step
+        for nd_ in ng.nodes:
+            if nd_.label == "dt, never zero":
+                _lk(ng, dt_p, 0, nd_, 0)
+
+        def _value_src(store):
+            return next((l.from_socket for l in ng.links
+                         if l.to_node.name == store.name
+                         and l.to_socket.name == "Value"), None)
+
+        fv_src, fo_src = _value_src(store_fvel), _value_src(store_foff)
+        geo_src = next((l.from_socket for l in ng.links
+                        if l.to_node.name == store_fvel.name
+                        and l.to_socket.name == "Geometry"), None)
+        cap = _nd(ng, "GeometryNodeCaptureAttribute", (2300, -1700),
+                  "this frame's velocity + offset, read once",
+                  role="OPERATOR", domain="POINT")
+        cap.capture_items.clear()
+        cap.capture_items.new("VECTOR", "Velocity")
+        cap.capture_items.new("VECTOR", "Offset")
+        if geo_src is not None:
+            ng.links.new(geo_src, cap.inputs[0])
+        if fv_src is not None:
+            ng.links.new(fv_src, cap.inputs["Velocity"])
+        if fo_src is not None:
+            ng.links.new(fo_src, cap.inputs["Offset"])
+        ng.links.new(cap.outputs[0], store_fvel.inputs[0])
+        ng.links.new(cap.outputs["Velocity"], store_fvel.inputs[3])
+        ng.links.new(cap.outputs["Offset"], store_foff.inputs[3])
+        emitter_nodes += [age_pos, dt_p, v_avg, half_dt, cap]
+
+    # =====================================================================
+    # 3.0.2  ·  OPERATOR · Remap Percentage Between Two Control Points
+    # =====================================================================
+    # Where the particle sits between two CPs, as a fraction, into radius
+    # (field 3) or alpha (field 7). Spliced onto the baked sprite_radius /
+    # sprite_alpha stores at the end - after Remap Distance, so the last
+    # writer wins exactly as in a chain - for name stability
+    op_rp = "Remap Percentage Between Two Control Points to Scalar"
+    if n_of(op_rp) and groups.get("remap_pct") is not None:
+        def _store_of(attr):
+            return next((n for n in ng.nodes
+                         if n.bl_idname == "GeometryNodeStoreNamedAttribute"
+                         and n.inputs[2].default_value == attr), None)
+
+        st_rad, st_alpha = _store_of("sprite_radius"), _store_of("sprite_alpha")
+        r_src = next((l.from_socket for l in ng.links if st_rad is not None
+                      and l.to_node.name == st_rad.name
+                      and l.to_socket.name == "Value"), None)
+        a_src = next((l.from_socket for l in ng.links if st_alpha is not None
+                      and l.to_node.name == st_alpha.name
+                      and l.to_socket.name == "Value"), None)
+        rp_nodes = []
+        for inst in range(1, n_of(op_rp) + 1):
+            y = -4200 - (inst - 1) * 420
+            cp_a, np_a = cp_select(gs(op_rp, "Start CP", inst), 1,
+                                   (1500, y), f"percentage start CP {inst}")
+            cp_b, np_b = cp_select(gs(op_rp, "End CP", inst), 1,
+                                   (1500, y - 200), f"percentage end CP {inst}")
+            rp = _nd(ng, "GeometryNodeGroup", (1740, y),
+                     spec.panel_name(op_rp, inst), role="OPERATOR")
+            rp.node_tree = groups["remap_pct"]
+            _lk(ng, gi, gon(op_rp, inst), rp, _in(rp, "Enable"))
+            _lk(ng, final_pos, 0, rp, _in(rp, "Position"))
+            _lp(ng, cp_a, rp, _in(rp, "Start CP Position"))
+            _lp(ng, cp_b, rp, _in(rp, "End CP Position"))
+            for nm in ("Percentage Min", "Percentage Max", "Output Min",
+                       "Output Max", "Output Field", "Scale Initial",
+                       "Radial"):
+                _lk(ng, gi, gs(op_rp, nm, inst), rp, _in(rp, nm))
+            if r_src is not None:
+                ng.links.new(r_src, rp.inputs[_in(rp, "Radius In")])
+            if a_src is not None:
+                ng.links.new(a_src, rp.inputs[_in(rp, "Alpha In")])
+            _lk(ng, envelope_for(op_rp, inst, (1500, y - 400)), 0, rp,
+                _in(rp, "Strength"))
+            r_src, a_src = rp.outputs[0], rp.outputs[1]
+            rp_nodes += [rp] + np_a + np_b
+        for inst in range(1, n_of(op_rp) + 1):
+            pn = P.get(spec.panel_name(op_rp, inst))
+            if pn is not None:
+                pn.description = (
+                    "Where the particle sits between two control points (0 at "
+                    "the start CP, 1 at the end CP), remapped into radius "
+                    "(field 3) or alpha (field 7). Percentage min above max "
+                    "reverses it.\n\nTHIS FEATURE WAS ADDED IN VERSION 3.0.2 "
+                    "AND IS IN EXPERIMENTAL STAGE")
+        if st_rad is not None and r_src is not None:
+            ng.links.new(r_src, st_rad.inputs[3])
+        if st_alpha is not None and a_src is not None:
+            ng.links.new(a_src, st_alpha.inputs[3])
+        note(ng, "OPERATOR  ·  Remap Percentage Between Two Control Points "
+             "to Scalar", "OPERATOR", """
+Where the particle sits between the start and end control points, as a
+fraction - 0 at the start, 1 at the end - remapped into radius (field 3) or
+alpha (field 7) and CLAMPED. Percentage min above max reverses it (the beams
+in your library: thick at the start, thin at the end). The maths lives
+inside the group. ADDED IN VERSION 3.0.2 AND IS IN EXPERIMENTAL STAGE.
+""", rp_nodes)
 
     #PROXY VIEW reaches the renderer. All three renderers carry the switch
     #now - cards and trails swap in the tenth-size stand-in, the rope keeps

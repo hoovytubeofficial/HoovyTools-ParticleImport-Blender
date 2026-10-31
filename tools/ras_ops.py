@@ -2143,6 +2143,142 @@ needed and scrubbing stays correct.
     return ng
 
 
+def build_remap_percentage_cps():
+    """SFM's `Remap Percentage Between Two Control Points to Scalar` (3.0.2).
+
+        radial  t = |position - start CP| / |end CP - start CP|
+        else    t = (position - start CP) . dir / |end CP - start CP|
+        out     = map(t, percentage min .. max -> output min .. max), CLAMPED
+
+    Percentage min may sit above max - Map Range reverses, which is how the
+    beams in the user's library taper (1 -> 0: output max at the start CP).
+    Field 3 = radius, 7 = alpha; Scale Initial multiplies the rolled value."""
+    ng = _group("SP · OPERATOR · Remap Percentage Between Two CPs",
+                "GeometryNodeTree")
+    _sock(ng, "Radius", "OUTPUT", "NodeSocketFloat")
+    _sock(ng, "Alpha", "OUTPUT", "NodeSocketFloat")
+    _sock(ng, "Enable", "INPUT", "NodeSocketBool", True)
+    _sock(ng, "Position", "INPUT", "NodeSocketVector", (0.0, 0.0, 0.0))
+    _sock(ng, "Start CP Position", "INPUT", "NodeSocketVector",
+          (0.0, 0.0, 0.0))
+    _sock(ng, "End CP Position", "INPUT", "NodeSocketVector",
+          (0.0, 0.0, 0.0))
+    _sock(ng, "Percentage Min", "INPUT", "NodeSocketFloat", 0.0)
+    _sock(ng, "Percentage Max", "INPUT", "NodeSocketFloat", 1.0)
+    _sock(ng, "Output Min", "INPUT", "NodeSocketFloat", 0.0)
+    _sock(ng, "Output Max", "INPUT", "NodeSocketFloat", 1.0)
+    _sock(ng, "Output Field", "INPUT", "NodeSocketInt", 3)
+    _sock(ng, "Scale Initial", "INPUT", "NodeSocketBool", False)
+    _sock(ng, "Radial", "INPUT", "NodeSocketBool", True)
+    _sock(ng, "Radius In", "INPUT", "NodeSocketFloat", 8.0)
+    _sock(ng, "Alpha In", "INPUT", "NodeSocketFloat", 1.0)
+    _sock(ng, "Strength", "INPUT", "NodeSocketFloat", 1.0)
+    gi, go = _io(ng, (-1500, 0), (1100, 0))
+    I = _gin(ng)
+
+    span_v = _nd(ng, "ShaderNodeVectorMath", (-1250, 300), "start -> end",
+                 role="OPERATOR", operation="SUBTRACT")
+    _lk(ng, gi, I["End CP Position"], span_v, 0)
+    _lk(ng, gi, I["Start CP Position"], span_v, 1)
+    span_len = _nd(ng, "ShaderNodeVectorMath", (-1070, 300), "how far apart",
+                   role="OPERATOR", operation="LENGTH")
+    _lk(ng, span_v, 0, span_len, 0)
+    span_safe = _nd(ng, "ShaderNodeMath", (-890, 300), "never zero",
+                    role="OPERATOR", operation="MAXIMUM")
+    _lk(ng, span_len, 1, span_safe, 0)
+    _sv(span_safe, 1, EPS)
+    rel = _nd(ng, "ShaderNodeVectorMath", (-1250, 120), "start -> particle",
+              role="OPERATOR", operation="SUBTRACT")
+    _lk(ng, gi, I["Position"], rel, 0)
+    _lk(ng, gi, I["Start CP Position"], rel, 1)
+    rel_len = _nd(ng, "ShaderNodeVectorMath", (-1070, 120), "radial: how far",
+                  role="OPERATOR", operation="LENGTH")
+    _lk(ng, rel, 0, rel_len, 0)
+    dir_n = _nd(ng, "ShaderNodeVectorMath", (-1070, -40), "the line's direction",
+                role="OPERATOR", operation="NORMALIZE")
+    _lk(ng, span_v, 0, dir_n, 0)
+    along = _nd(ng, "ShaderNodeVectorMath", (-890, -40), "along the line",
+                role="OPERATOR", operation="DOT_PRODUCT")
+    _lk(ng, rel, 0, along, 0)
+    _lk(ng, dir_n, 0, along, 1)
+    pick = _nd(ng, "GeometryNodeSwitch", (-710, 120), "radial, or along",
+               role="OPERATOR", input_type="FLOAT")
+    _lk(ng, gi, I["Radial"], pick, 0)
+    _lk(ng, along, "Value", pick, 1)
+    _lk(ng, rel_len, "Value", pick, 2)
+    pct = _nd(ng, "ShaderNodeMath", (-530, 120), "as a fraction of the span",
+              role="OPERATOR", operation="DIVIDE")
+    _lk(ng, pick, 0, pct, 0)
+    _lk(ng, span_safe, 0, pct, 1)
+
+    remap = _nd(ng, "ShaderNodeMapRange", (-330, 140),
+                "fraction -> output, clamped", role="OPERATOR", clamp=True)
+    _lk(ng, pct, 0, remap, 0)
+    _lk(ng, gi, I["Percentage Min"], remap, 1)
+    _lk(ng, gi, I["Percentage Max"], remap, 2)
+    _lk(ng, gi, I["Output Min"], remap, 3)
+    _lk(ng, gi, I["Output Max"], remap, 4)
+
+    s_on = _nd(ng, "ShaderNodeMath", (-330, -160), "strength, gated",
+               role="OPERATOR", operation="MULTIPLY")
+    _lk(ng, gi, I["Strength"], s_on, 0)
+    _lk(ng, gi, I["Enable"], s_on, 1)
+
+    def branch(field_id, in_name, y):
+        """One output field: SET the remapped value, or scale the initial."""
+        scaled = _nd(ng, "ShaderNodeMath", (-120, y),
+                     f"x the rolled {in_name.lower()}", role="OPERATOR",
+                     operation="MULTIPLY")
+        _lk(ng, gi, I[in_name], scaled, 0)
+        _lk(ng, remap, 0, scaled, 1)
+        val = _nd(ng, "GeometryNodeSwitch", (60, y),
+                  "set, or scale the initial", role="OPERATOR",
+                  input_type="FLOAT")
+        _lk(ng, gi, I["Scale Initial"], val, 0)
+        _lk(ng, remap, 0, val, 1)
+        _lk(ng, scaled, 0, val, 2)
+        is_f = _nd(ng, "FunctionNodeCompare", (60, y - 160),
+                   f"field == {field_id}?", role="OPERATOR",
+                   data_type="INT", operation="EQUAL")
+        _lk(ng, gi, I["Output Field"], is_f, 0)
+        _sv(is_f, 1, field_id)
+        f = _nd(ng, "ShaderNodeMath", (260, y - 100), "only that field",
+                role="OPERATOR", operation="MULTIPLY")
+        _lk(ng, s_on, 0, f, 0)
+        _lk(ng, is_f, 0, f, 1)
+        mix = _nd(ng, "ShaderNodeMix", (460, y), "applied", role="OPERATOR",
+                  data_type="FLOAT", factor_mode="UNIFORM")
+        _lk(ng, f, 0, mix, 0)
+        _lk(ng, gi, I[in_name], mix, 2)
+        _lk(ng, val, 0, mix, 3)
+        return [scaled, val, is_f, f, mix], mix
+
+    r_nodes, r_mix = branch(3, "Radius In", 240)
+    a_nodes, a_mix = branch(7, "Alpha In", -240)
+    _lk(ng, r_mix, 0, go, 0)
+    _lk(ng, a_mix, 0, go, 1)
+
+    note(ng, "OPERATOR  ·  Remap Percentage Between Two Control Points "
+         "to Scalar", "OPERATOR", """
+Where the particle sits between two control points, as a fraction.
+
+    radial on   t = |particle - start CP| / |end CP - start CP|
+    radial off  t = the same, measured ALONG the start -> end line
+    out         = map(t, percentage min .. max -> output min .. max)
+
+CLAMPED at both ends. Percentage min above max reverses the map - the beams
+in your library use 1 -> 0, so the start CP gets output max and the end CP
+output min. Field 3 writes RADIUS, field 7 ALPHA; any other id passes the
+particle through. "Scale Initial" multiplies the rolled value instead of
+replacing it. Reads the particle's final evaluated position, so it stays
+exact at any frame rate.
+
+THIS FEATURE WAS ADDED IN VERSION 3.0.2 AND IS IN EXPERIMENTAL STAGE.
+""", [span_v, span_len, span_safe, rel, rel_len, dir_n, along, pick, pct,
+      remap, s_on] + r_nodes + a_nodes)
+    return ng
+
+
 # =============================================================================
 # OPERATOR  ·  Color Fade                          (1493 uses)
 # =============================================================================
@@ -2658,33 +2794,58 @@ def build_yaw_random():
     and this compression compose by multiplication, exactly like Source."""
     ng = _group("SP · INITIALIZER · Rotation Yaw Random", "GeometryNodeTree")
     _sock(ng, "Scale", "OUTPUT", "NodeSocketFloat")
+    # 3.0.2: the angle itself (radians, 0 when off) - a card locked to a
+    # control point turns by it in its own plane instead of squishing
+    _sock(ng, "Yaw", "OUTPUT", "NodeSocketFloat")
     _sock(ng, "Enable", "INPUT", "NodeSocketBool", False)
     _sock(ng, "Yaw Min", "INPUT", "NodeSocketFloat", 0.0)
     _sock(ng, "Yaw Max", "INPUT", "NodeSocketFloat", 0.0)
+    _sock(ng, "Yaw Initial", "INPUT", "NodeSocketFloat", 0.0)
+    _sock(ng, "Exponent", "INPUT", "NodeSocketFloat", 1.0)
     _sock(ng, "ID", "INPUT", "NodeSocketInt", 0)
     _sock(ng, "Seed", "INPUT", "NodeSocketInt", 0)
-    gi, go = _io(ng, (-900, 0), (700, 0))
+    gi, go = _io(ng, (-1100, 0), (700, 0))
     I = _gin(ng)
 
-    salt = _nd(ng, "ShaderNodeMath", (-680, -160), "seed + salt",
+    salt = _nd(ng, "ShaderNodeMath", (-880, -160), "seed + salt",
                role="INITIALIZER", operation="ADD")
     _lk(ng, gi, I["Seed"], salt, 0)
     _sv(salt, 1, 53.0)
-    yaw = _nd(ng, "FunctionNodeRandomValue", (-500, -60),
-              "a yaw per particle", role="INITIALIZER")
+    # 3.0.2: the roll is drawn 0..1 and biased by the exponent before the
+    # range - Source's yaw = initial + min + rand^exponent x (max - min)
+    # Exponent 1 gives the very same yaws as before (same id, same seed).
+    yaw = _nd(ng, "FunctionNodeRandomValue", (-700, -60),
+              "a roll per particle, 0..1", role="INITIALIZER")
     yaw.data_type = "FLOAT"
-    _lk(ng, gi, I["Yaw Min"], yaw, 0)
-    _lk(ng, gi, I["Yaw Max"], yaw, 1)
+    _sv(yaw, 0, 0.0)
+    _sv(yaw, 1, 1.0)
     _lk(ng, gi, I["ID"], yaw, 2)
     _lk(ng, salt, 0, yaw, 3)
-    rad = _nd(ng, "ShaderNodeMath", (-320, -60), "degrees -> radians",
+    biased = _nd(ng, "ShaderNodeMath", (-520, -60), "^ exponent",
+                 role="INITIALIZER", operation="POWER")
+    _lk(ng, yaw, 0, biased, 0)   # 0.26.3: 5.2's Random Value has one output
+    _lk(ng, gi, I["Exponent"], biased, 1)
+    span = _nd(ng, "ShaderNodeMath", (-700, -240), "max - min",
+               role="INITIALIZER", operation="SUBTRACT")
+    _lk(ng, gi, I["Yaw Max"], span, 0)
+    _lk(ng, gi, I["Yaw Min"], span, 1)
+    in_range = _nd(ng, "ShaderNodeMath", (-340, -60), "min + span x that",
+                   role="INITIALIZER", operation="MULTIPLY_ADD")
+    _lk(ng, biased, 0, in_range, 0)
+    _lk(ng, span, 0, in_range, 1)
+    _lk(ng, gi, I["Yaw Min"], in_range, 2)
+    plus_init = _nd(ng, "ShaderNodeMath", (-340, -240), "+ yaw initial",
+                    role="INITIALIZER", operation="ADD")
+    _lk(ng, in_range, 0, plus_init, 0)
+    _lk(ng, gi, I["Yaw Initial"], plus_init, 1)
+    rad = _nd(ng, "ShaderNodeMath", (-160, -60), "degrees -> radians",
               role="INITIALIZER", operation="RADIANS")
-    _lk(ng, yaw, 0, rad, 0)      # 0.26.3: 5.2's Random Value has one output
-    squish = _nd(ng, "ShaderNodeMath", (-140, -60), "cos = how much is left",
+    _lk(ng, plus_init, 0, rad, 0)
+    squish = _nd(ng, "ShaderNodeMath", (20, -60), "cos = how much is left",
                  role="INITIALIZER", operation="COSINE")
     _lk(ng, rad, 0, squish, 0)
 
-    one = _nd(ng, "ShaderNodeValue", (-140, -220), "off = untouched",
+    one = _nd(ng, "ShaderNodeValue", (20, -220), "off = untouched",
               role="INITIALIZER")
     _sv_out = one.outputs[0]
     _sv_out.default_value = 1.0
@@ -2694,9 +2855,18 @@ def build_yaw_random():
     _lk(ng, one, 0, sw, 1)
     _lk(ng, squish, 0, sw, 2)
     _lk(ng, sw, 0, go, 0)
+    sw_yaw = _nd(ng, "GeometryNodeSwitch", (240, -200), "enabled? (angle)",
+                 role="INITIALIZER", input_type="FLOAT")
+    _lk(ng, gi, I["Enable"], sw_yaw, 0)
+    _sv(sw_yaw, 1, 0.0)
+    _lk(ng, rad, 0, sw_yaw, 2)
+    _lk(ng, sw_yaw, 0, go, 1)
 
     note(ng, "INITIALIZER  ·  Rotation Yaw Random", "INITIALIZER", """
-    card X scale x= cos( random(yaw min .. yaw max) )
+    yaw = yaw initial + min + random^exponent x (max - min)
+    card X scale x= cos( yaw )
+    (3.0.2: a card locked to a control point turns by yaw in its own plane
+    instead - the system graph switches it by orientation type.)
 
 YAW ON A CAMERA-FACING CARD IS FORESHORTENING. The card never stops facing
 the camera, so a real yaw angle can only show up as the card getting
@@ -2706,7 +2876,8 @@ channel the yaw FLIP mirror uses: flip's -1 and this compression compose by
 multiplication.
 
 Disabled it returns exactly 1 and the chain is untouched.
-""", [salt, yaw, rad, squish, one, sw])
+""", [salt, yaw, biased, span, in_range, plus_init, rad, squish, one, sw,
+      sw_yaw])
     return ng
 
 
