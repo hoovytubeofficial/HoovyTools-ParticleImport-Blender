@@ -280,7 +280,7 @@ def build_render_sprite_trail(mat, eye_group):
     shift = _nd(ng, "GeometryNodeTransform", (-500, 700),
                 "pivot at the head", role="RENDERER")
     _lk(ng, uv, 0, shift, 0)
-    _sv(shift, 2, (0.0, -0.5, 0.0))
+    _sv(shift, "Translation", (0.0, -0.5, 0.0))      # 3.0.5: by name - 2 was Rotation before Blender 5
     # ⚠️ SET MATERIAL GOES ON THE INSTANCE SOURCE, before Instance on Points.
     # After instancing it does nothing at all.
     setmat = _nd(ng, "GeometryNodeSetMaterial", (-300, 700), "the trail sheet",
@@ -306,7 +306,7 @@ def build_render_sprite_trail(mat, eye_group):
     proxy_card = _nd(ng, "GeometryNodeTransform", (-300, 520),
                      "quarter width, full length", role="RENDERER")
     _lk(ng, shift, 0, proxy_card, 0)
-    _sv(proxy_card, 3, (0.25, 1.0, 1.0))
+    _sv(proxy_card, "Scale", (0.25, 1.0, 1.0))      # 3.0.5: by name - 3 is ROTATION in Blender 5
     card_pick = _nd(ng, "GeometryNodeSwitch", (-100, 620),
                     "the real card, or the stand-in", role="RENDERER",
                     input_type="GEOMETRY")

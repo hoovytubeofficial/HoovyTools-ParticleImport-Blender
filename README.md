@@ -14,7 +14,7 @@ and for the twin, [SFM Session to BLENDER Importer](https://www.youtube.com/watc
 
 [![Import Particles into Blender - video tutorial](https://img.youtube.com/vi/-NGdPxKTsJA/hqdefault.jpg)](https://www.youtube.com/watch?v=-NGdPxKTsJA)
 
-**[Download 3.0.2](https://github.com/hoovytubeofficial/HoovyTools-ParticleImport-Blender/releases/download/v3.0.2/HoovyTools-ParticleImport-Blender-3.0.2.zip)** - then drag the zip onto Blender. ([All releases](https://github.com/hoovytubeofficial/HoovyTools-ParticleImport-Blender/releases))
+**[Download 3.0.7](https://github.com/hoovytubeofficial/HoovyTools-ParticleImport-Blender/releases/download/v3.0.7/HoovyTools-ParticleImport-Blender-3.0.7.zip)** - then drag the zip onto Blender. ([All releases](https://github.com/hoovytubeofficial/HoovyTools-ParticleImport-Blender/releases))
 
 Pick a `.pcf`, pick a system, press **BUILD THIS SYSTEM**. The effect arrives with all its child systems, its
 materials resolved through the `.vmt` / `.vtf` chain, one control-point rig for the whole effect, and every value the
@@ -68,7 +68,7 @@ Also: [PCF Preview cards and the node graph](https://github.com/hoovytubeofficia
 
 ## Install
 
-1. Download `HoovyTools-ParticleImport-Blender-3.0.2.zip` from [Releases](https://github.com/hoovytubeofficial/HoovyTools-ParticleImport-Blender/releases). Leave it zipped.
+1. Download `HoovyTools-ParticleImport-Blender-3.0.7.zip` from [Releases](https://github.com/hoovytubeofficial/HoovyTools-ParticleImport-Blender/releases). Leave it zipped.
 2. Drag the zip onto any Blender window. Blender offers to install a **Legacy Add-on** - keep *Enable on Install*
    ticked and press OK. (Edit > Preferences > Add-ons > Install from Disk does the same.)
 3. In the 3D Viewport, open the sidebar (`N`) > **HoovyTools** > **Source Particle Import**.
@@ -150,7 +150,11 @@ Some tools also come as a **Text Editor version** - a plain script that does the
 
 ## Version history
 
-- **3.0.2** - this release: Random Force, Pull towards control point and twist around axis run on the same
+- **3.0.7** - this release: a build that ran into a problem (a missing material is enough) no longer stops
+  with an error at the end; on Blender 4.2 - 4.5 every node is wired the way it is on 5.x (random ranges, seeds
+  and integer compares reached the wrong sockets there); the Proxy View stand-in cards are scaled, not turned;
+  with more than one SFM on the computer the right one is used, and materials are looked up in every install.
+- **3.0.2** - Random Force, Pull towards control point and twist around axis run on the same
   clock as Gravity (they ran a step ahead); Rotation Yaw Random spins cards locked to a control point and reads Yaw
   Initial / Yaw Exponent; new operator **Remap Percentage Between Two Control Points to Scalar** (tapered beams).
 - **3.0.1** - **Ensure PIL**. A Pillow built for another Python (`cannot import name '_imaging'`)

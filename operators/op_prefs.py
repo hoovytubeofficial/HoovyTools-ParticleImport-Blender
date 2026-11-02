@@ -60,8 +60,39 @@ def sfm_override():
 # Preference first, auto-detection second. Same names as paths.py so a call
 # site changes one word (paths.texture_dir() -> op_prefs.texture_dir())
 
+# 3.0.6: which SFM, when this computer has several (a user's C: had an almost empty install, his real one was
+# on D:, and every material came out "no .vmt found"). Hints, best first: the SFM the chosen .pcf sits in, then
+# the one the SFM Session Importer is set to - read through Blender's preferences, nothing of it's imported
+# Its untouched default (C:\Program Files (x86)\...) is no hint: on a D: install it is exactly the wrong guess
+_SESSION_IMPORTER = ("HoovyTools-SFMSessionImport-Blender-Master", "HoovyTools-SFMSessionImport-Blender-master",
+                     "HoovyTools-SFMSessionImport-Blender-main")
+_SI_DEFAULT = r"c:\program files (x86)\steam\steamapps\common\sourcefilmmaker\game\usermod"
+
+
+def _hints():
+    out = []
+    try:
+        pcf = bpy.context.scene.htp.definition_file
+        um = paths.install_of(bpy.path.abspath(pcf)) if pcf else None
+        if um is not None:
+            out.append(str(um))
+    except Exception:                                         # no scene yet (registration), or no htp
+        pass
+    try:
+        for name in _SESSION_IMPORTER:
+            a = bpy.context.preferences.addons.get(name)
+            if a is not None and a.preferences is not None:
+                raw = (getattr(a.preferences, "sfm_usermod_path", "") or "").strip()
+                if raw and raw.rstrip("\\/").lower() != _SI_DEFAULT:
+                    out.append(bpy.path.abspath(raw))
+                break
+    except Exception:
+        pass
+    return out
+
+
 def find_usermod():
-    return paths.find_usermod(sfm_override())
+    return paths.find_usermod(sfm_override(), hints=_hints())
 
 
 def particles_dir():

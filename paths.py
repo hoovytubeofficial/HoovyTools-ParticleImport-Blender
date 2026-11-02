@@ -88,6 +88,16 @@ def _library_folders(steam_root):
 
 
 def _fixed_drives():
+    """3.0.6: the drives Windows lists as fixed, removable or RAM - not network or CD drives (a disconnected
+    network drive can hang a folder check for half a minute, an empty CD drive raises)."""
+    try:
+        import ctypes
+        k32 = ctypes.windll.kernel32
+        mask = k32.GetLogicalDrives()
+        return [Path(f"{c}:\\") for i, c in enumerate(string.ascii_uppercase)
+                if mask & (1 << i) and k32.GetDriveTypeW(f"{c}:\\") in (2, 3, 6)]
+    except Exception:                                         # not Windows
+        pass
     drives = []
     for letter in string.ascii_uppercase:
         root = Path(f"{letter}:\\")
@@ -130,27 +140,141 @@ def _true_case(path):
 
 # ── public API ───────────────────────────────────────────────────────────────
 
-def find_usermod(override=None, force=False):
-    """Return the SFM usermod Path, or None. Cached after the first call."""
-    if override:
-        p = Path(os.path.expandvars(str(override))).expanduser()
-        if (p / "gameinfo.txt").is_file() or p.is_dir():
-            return p
-    if _cache["done"] and not force:
-        return _cache["usermod"]
-
-    found = None
+def find_usermods(force=False):
+    """3.0.6: EVERY SFM usermod on this computer, in the order found (Steam's libraries, then the usual folders
+    on every drive). Cached."""
+    if _cache.get("all") is not None and not force:
+        return list(_cache["all"])
+    out, seen = [], set()
     for root in _candidate_steam_roots():
         usermod = root / _REL_SFM / _REL_USERMOD
         try:
             if usermod.is_dir():
-                found = _true_case(usermod)
-                break
+                usermod = _true_case(usermod)
+                key = os.path.normcase(str(usermod))
+                if key not in seen:
+                    seen.add(key)
+                    out.append(usermod)
         except Exception:
             continue
+    _cache["all"] = out
+    return list(out)
+
+
+def install_of(path):
+    """3.0.6: the usermod of the SFM install a file sits in (a .pcf in ...\\game\\usermod\\particles, or in any
+    other mod folder of that game), or None. Walks up the folders; reads nothing but a few names."""
+    try:
+        p = Path(os.path.abspath(str(path)))
+        for parent in p.parents:
+            if parent.name.lower() == "game" and (parent / "usermod" / "gameinfo.txt").is_file():
+                return _true_case(parent / "usermod")
+    except Exception:
+        pass
+    return None
+
+
+def _content(usermod):
+    """How much one install holds - .pcf files in usermod\\particles (two levels) plus material folders - to
+    choose between several. Cheap: two globs and a listdir."""
+    n = 0
+    try:
+        parts = usermod / "particles"
+        if parts.is_dir():
+            n += sum(1 for _ in parts.glob("*.pcf")) + sum(1 for _ in parts.glob("*/*.pcf"))
+        mats = usermod / "materials"
+        if mats.is_dir():
+            n += len(os.listdir(mats))
+    except Exception:
+        pass
+    return n
+
+
+def find_usermod(override=None, force=False, hints=()):
+    """Return the SFM usermod Path, or None. Cached after the first call.
+
+    3.0.6 - WHICH ONE, when there are several: an override wins; then the first HINT that is a usermod (the
+    caller's: the SFM the chosen .pcf sits in, the one the Session Importer is set to); then the install
+    holding the most. It used to be simply the first one found - Steam's own library on C: - and a user whose
+    SFM lived on D: had every material reported "no .vmt found" against an almost empty C: install."""
+    if override:
+        p = Path(os.path.expandvars(str(override))).expanduser()
+        if (p / "gameinfo.txt").is_file() or p.is_dir():
+            return p
+    for h in hints or ():
+        try:
+            p = Path(os.path.expandvars(str(h))).expanduser()
+            if (p / "gameinfo.txt").is_file():
+                return _true_case(p)
+        except Exception:
+            continue
+    if _cache["done"] and not force:
+        return _cache["usermod"]
+
+    every = find_usermods(force)
+    found = None
+    if len(every) == 1:
+        found = every[0]
+    elif every:
+        found = max(every, key=lambda u: (_content(u), -every.index(u)))      # ties: the first found
     _cache["usermod"] = found
     _cache["done"] = True
     return found
+
+
+def material_roots(usermod=None):
+    """3.0.6: every `materials` folder worth looking in, best first - the chosen install's usermod, tf, hl2,
+    workshop, unpack (the old list), then what its usermod\\gameinfo.txt lists, then every other mod folder
+    under its game\\; then every OTHER install the same way. The old list stopped at the five names of one
+    install, so a pack in game\\fnaf or on another drive was "no .vmt found"."""
+    every = find_usermods()
+    first = [usermod] if usermod is not None else []
+    out, seen = [], set()
+
+    def add(d):
+        try:
+            if d.is_dir():
+                key = os.path.normcase(os.path.abspath(str(d)))
+                if key not in seen:
+                    seen.add(key)
+                    out.append(d)
+        except Exception:
+            pass
+    for um in first + [u for u in every if usermod is None or os.path.normcase(str(u)) !=
+                       os.path.normcase(str(usermod))]:
+        game = um.parent
+        for rel in ("usermod", "tf", "hl2", "workshop", "unpack"):
+            add(game / rel / "materials")
+        for mod in _gameinfo_mods(um):
+            add(mod / "materials")
+        try:
+            for name in sorted(os.listdir(game)):
+                add(game / name / "materials")
+        except Exception:
+            pass
+    return out
+
+
+def _gameinfo_mods(usermod):
+    """The folders usermod\\gameinfo.txt's SearchPaths block names, in its order."""
+    out = []
+    try:
+        text = (usermod / "gameinfo.txt").read_text(encoding="utf-8", errors="ignore")
+    except Exception:
+        return out
+    block = re.search(r"SearchPaths\s*\{([^}]*)\}", text, re.S | re.I)
+    if not block:
+        return out
+    for line in block.group(1).splitlines():
+        line = line.split("//", 1)[0].strip()
+        if not line:
+            continue
+        raw = line.split()[-1].strip('"').replace("|gameinfo_path|", str(usermod) + os.sep)
+        if "|" in raw:
+            continue
+        p = Path(raw)
+        out.append(p if p.is_absolute() else usermod.parent / raw)
+    return out
 
 
 def subdir(kind, override=None):
@@ -234,6 +358,7 @@ def particles_dir(override=None):
 def refresh():
     _cache["usermod"] = None
     _cache["done"] = False
+    _cache["all"] = None
 
 # ── where trail textures actually live ───────────────────────────────────────
 #

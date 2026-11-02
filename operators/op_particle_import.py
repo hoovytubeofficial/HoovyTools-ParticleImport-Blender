@@ -466,17 +466,12 @@ def particle_collection(context, system_name):
 # Depth-first, so the parent object exists before anything points at it.
 
 def _material_roots():
-    """Every `materials` folder worth looking in, most specific first."""
-    roots = []
-    usermod = op_prefs.find_usermod()
-    if usermod is not None:
-        game = usermod.parent
-        for rel in ("usermod/materials", "tf/materials", "hl2/materials",
-                    "workshop/materials", "unpack/materials"):
-            d = game / Path(rel)
-            if d.is_dir():
-                roots.append(d)
-    return roots
+    """Every `materials` folder worth looking in, most specific first.
+
+    3.0.6: the chosen install's five old folders first, then every other mod folder of it, then every other SFM
+    install on this computer (paths.material_roots) - not five names of one install."""
+    from .. import paths
+    return paths.material_roots(op_prefs.find_usermod())
 
 
 # BUNDLED FALLBACK MATERIALS - "usable particles when a material fucks up"
@@ -1037,7 +1032,9 @@ THIS FEATURE WAS ADDED IN VERSION 3.0.0 AND IS IN EXPERIMENTAL STAGE"""
         cam_note = auto_camera(context, pcf_file, p.system, cursor)
         if cam_note:
             msg += " · " + cam_note
-            from ..tools import htlog
+            # 3.0.5: no `from ..tools import htlog` here any more - an import inside execute() made htlog LOCAL
+            # to the whole function, so every build WITH PROBLEMS died above with UnboundLocalError (the module
+            # already imports it at the top)
             htlog.event("INFO", "Imported '%s' and created a camera" % p.system, [cam_note], pcf=pcf_file)
             _tell(context, "Particle imported, camera created",
                   ["'%s' is in the scene." % p.system, cam_note])

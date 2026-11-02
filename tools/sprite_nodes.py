@@ -149,16 +149,58 @@ def _nd(ng, idname, loc=(0, 0), label=None, role=None, **props):
     return n
 
 
+# 3.0.5 BLENDER 4.x COUNTS SOCKETS DIFFERENTLY. Every number below is the 5.x one (see the header); on 4.2-4.5
+# the same number reached another socket - measured on 4.3 against 5.2 over every node type this add-on makes:
+# * Compare and Random Value keep ALL their typed sockets in 4.x (Min as vector, float, int ...) and only
+# hide the unused ones; 5.x has only the chosen type's. The 5.x number = the number among ENABLED ones
+# * Transform (Mode), Curve to Mesh (Scale), Capture Attribute (Selection), Principled (Thin Wall) got a
+# socket in 5.0; every number after it is one lower in 4.x, and the new one does not exist there
+# A user on 4.2 got "sequence expected at dimension 1, not 'float'" 28 times and particles with the wrong
+# random ranges, seeds and compares - most of it silent
+_BEFORE_5 = bpy.app.version < (5, 0, 0)
+_ONLY_ACTIVE = {"FunctionNodeCompare", "FunctionNodeRandomValue"}
+_NEW_IN_5 = {("GeometryNodeTransform", "in"): 1, ("GeometryNodeCurveToMesh", "in"): 2,
+             ("GeometryNodeCaptureAttribute", "in"): 1, ("GeometryNodeCaptureAttribute", "out"): 1,
+             ("ShaderNodeBsdfPrincipled", "in"): 5}
+
+
+def _socket(node, side, idx):
+    """The socket a 5.x socket number (or a name) means, on this Blender. None when it does not exist here."""
+    coll = node.inputs if side == "in" else node.outputs
+    if not _BEFORE_5:
+        return coll[idx]
+    if node.bl_idname in _ONLY_ACTIVE:
+        live = [s for s in coll if s.enabled]
+        if isinstance(idx, str):
+            return next((s for s in live if s.name == idx), coll[idx])
+        return live[idx]
+    new = _NEW_IN_5.get((node.bl_idname, side))
+    if new is not None and isinstance(idx, int):
+        if idx == new:
+            return None
+        if idx > new:
+            idx -= 1
+    return coll[idx]
+
+
 def _lk(ng, a, ai, b, bi):
     try:
-        ng.links.new(a.outputs[ai], b.inputs[bi])
+        out, inp = _socket(a, "out", ai), _socket(b, "in", bi)
+        if out is None or inp is None:
+            print(f"[HT_SPRITE]  link {a.name}[{ai}]->{b.name}[{bi}]: not in Blender {bpy.app.version_string}")
+            return
+        ng.links.new(out, inp)
     except Exception as exc:
         print(f"[HT_SPRITE]  link {a.name}[{ai}]->{b.name}[{bi}]: {exc}")
 
 
 def _sv(node, idx, value):
     try:
-        node.inputs[idx].default_value = value
+        s = _socket(node, "in", idx)
+        if s is None:
+            print(f"[HT_SPRITE]  socket {node.name}[{idx}]: not in Blender {bpy.app.version_string}")
+            return
+        s.default_value = value
     except Exception as exc:
         print(f"[HT_SPRITE]  socket {node.name}[{idx}]: {exc}")
 

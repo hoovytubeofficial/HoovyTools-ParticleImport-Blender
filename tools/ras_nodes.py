@@ -1369,7 +1369,7 @@ def build_render_animated_sprites(mat, eye_group):
     proxy_card = _nd(ng, "GeometryNodeTransform", (-700, -760),
                      "the stand-in card (unit)", role="RENDERER")
     _lk(ng, uvstore, 0, proxy_card, 0)
-    _sv(proxy_card, 3, (1.0, 1.0, 1.0))
+    _sv(proxy_card, "Scale", (1.0, 1.0, 1.0))      # 3.0.5: by name - 3 is ROTATION in Blender 5
     card_pick = _nd(ng, "GeometryNodeSwitch", (-500, -640),
                     "the real card, or the stand-in", role="RENDERER",
                     input_type="GEOMETRY")

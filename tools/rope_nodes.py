@@ -388,7 +388,7 @@ def build_render_rope(mat, eye_group):
                  "quad strip  (topology only)", role="RENDERER")
     _lk(ng, chain, 0, ribbon, 0)
     _lk(ng, store_u, 0, ribbon, 1)
-    _sv(ribbon, 3, False)
+    _sv(ribbon, "Fill Caps", False)                  # 3.0.5: by name - Blender 4 has no Scale before it
 
     # ── 5. rebuild the rails by hand ─────────────────────────────────────
     r_centre = _nd(ng, "GeometryNodeInputNamedAttribute", (400, -320),
